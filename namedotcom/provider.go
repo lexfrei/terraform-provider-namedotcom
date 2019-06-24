@@ -2,7 +2,7 @@ package namedotcom
 
 import (
 	"github.com/hashicorp/terraform/helper/schema"
-	namecom "github.com/namedotcom/go/namecom"
+	"github.com/namedotcom/go/namecom"
 )
 
 func Provider() *schema.Provider {
@@ -22,16 +22,15 @@ func Provider() *schema.Provider {
 				Description: "API Username",
 			},
 		},
+		ResourcesMap: map[string]*schema.Resource{
+			"name_record": resourceRecord(),
+		},
 	}
 }
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
-	token := d.Get("api_token").(string)
 	username := d.Get("api_username").(string)
-	config := NameCom{
-		token,
-		username,
-	}
-	config.New()
-	return namecom
+	token := d.Get("api_token").(string)
+	nc := namecom.New(username, token)
+	return nc, nil
 }
