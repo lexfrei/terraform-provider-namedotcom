@@ -7,10 +7,11 @@ import (
 
 func resourceRecord() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceRecordCreate,
-		Read:   resourceRecordRead,
-		Update: resourceRecordUpdate,
-		Delete: resourceRecordDelete,
+		Create: resourceDomainCreate,
+		// Read:   resourceDomainRead,
+		Update: resourceDomainUpdate,
+		// Delete: resourceDomainDelete,
+		// Exists: resourceDomainExists,
 
 		Schema: map[string]*schema.Schema{
 			"record_id": &schema.Schema{
@@ -42,7 +43,7 @@ func resourceRecord() *schema.Resource {
 	}
 }
 
-func resourceRecordCreate(d *schema.ResourceData, m interface{}) error {
+func resourceDomainCreate(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 	record := namecom.Record{
 		DomainName: d.Get("domain_name").(string),
@@ -54,37 +55,19 @@ func resourceRecordCreate(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
-func resourceRecordRead(d *schema.ResourceData, m interface{}) error {
+func resourceDomainUpdate(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	request := namecom.GetRecordRequest{
-		DomainName: d.Get("domain_name").(string),
-		ID:         d.Id(),
-	}
-	client.GetRecord(request)
-	return nil
-}
-
-func resourceRecordUpdate(d *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
-	// TODO
-	// resourceRecordRead and retrieveID
+	// diff NameServers and update as necessar
+	// diff EnableAutoRenew and update as necessar
+	// diff Contacts and update as necessar
+	// diff LockDomain and update as necessar
 	record := namecom.Record{
 		DomainName: d.Get("domain_name").(string),
 		Host:       d.Get("host").(string),
 		Type:       d.Get("record_type").(string),
 		Answer:     d.Get("answer").(string),
 	}
-	client.UpdateRecord(record)
-	return nil
-}
-
-func resourceRecordDelete(d *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
-	request := namecom.DeleteRecordRequest{
-		DomainName: d.Get("domain_name").(string),
-		ID:         d.Id(),
-	}
-	client.DeleteRecord(request)
+	client.CreateRecord(record)
 	return nil
 }
