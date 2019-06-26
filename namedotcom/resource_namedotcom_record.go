@@ -3,6 +3,7 @@ package namedotcom
 import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/namedotcom/go/namecom"
+	"strconv"
 )
 
 func resourceRecord() *schema.Resource {
@@ -50,41 +51,63 @@ func resourceRecordCreate(d *schema.ResourceData, m interface{}) error {
 		Type:       d.Get("record_type").(string),
 		Answer:     d.Get("answer").(string),
 	}
-	client.CreateRecord(record)
-	return nil
+	client.CreateRecord(&record)
+	return resourceRecordRead(d, m)
 }
 
 func resourceRecordRead(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	request := namecom.GetRecordRequest{
-		DomainName: d.Get("domain_name").(string),
-		ID:         d.Id(),
+	domain_name := d.Get("domain_name").(string)
+	request := namecom.ListRecordsRequest{DomainName: domain_name}
+	r, _ := client.ListRecords(&request)
+
+	// Get record_id from list of records matching `domain_name`
+	var record_id int32
+	for _, v := range r.Records {
+		if v.DomainName == domain_name {
+			record_id = v.ID
+		}
 	}
-	client.GetRecord(request)
+
+	d.SetId(strconv.Itoa(int(record_id)))
+	// d.Set("DomainName", folder.Name)
+	// d.Set("Host", folder.Parent)
+	// d.Set("Type", folder.DisplayName)
+	// d.Set("Answer", folder.LifecycleState)
+
 	return nil
 }
 
 func resourceRecordUpdate(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
+
 	// TODO
-	// resourceRecordRead and retrieveID
-	record := namecom.Record{
+	// Pagination???
+
+	domain_name := d.Get("domain_name").(string)
+	request := namecom.ListRecordsRequest{DomainName: domain_name}
+	r, _ := client.ListRecords(&request)
+
+	// Get record_id from list of records matching `domain_name`
+	var record_id int32
+	for _, v := range r.Records {
+		if v.DomainName == domain_name {
+			record_id = v.ID
+		}
+	}
+
+	updatedRecord := namecom.Record{
+		ID:         record_id,
 		DomainName: d.Get("domain_name").(string),
 		Host:       d.Get("host").(string),
 		Type:       d.Get("record_type").(string),
 		Answer:     d.Get("answer").(string),
 	}
-	client.UpdateRecord(record)
-	return nil
+	client.UpdateRecord(&updatedRecord)
+	return resourceRecordRead(d, m)
 }
 
 func resourceRecordDelete(d *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
-	request := namecom.DeleteRecordRequest{
-		DomainName: d.Get("domain_name").(string),
-		ID:         d.Id(),
-	}
-	client.DeleteRecord(request)
 	return nil
 }
