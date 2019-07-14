@@ -123,7 +123,7 @@ func resourceRecordDelete(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
-	deleteRequest := namecom.DeleteRecordRequest{ID: record_id}
+	deleteRequest := namecom.DeleteRecordRequest{DomainName: domain_name, ID: record_id}
 	client.DeleteRecord(&deleteRequest)
 
 	d.SetId("")
