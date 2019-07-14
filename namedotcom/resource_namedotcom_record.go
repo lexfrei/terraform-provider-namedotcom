@@ -70,6 +70,7 @@ func resourceRecordRead(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
+	// Record tfstate id with record_id
 	d.SetId(strconv.Itoa(int(record_id)))
 	// d.Set("DomainName", folder.Name)
 	// d.Set("Host", folder.Parent)
