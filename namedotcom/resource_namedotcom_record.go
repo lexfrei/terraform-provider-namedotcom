@@ -109,5 +109,23 @@ func resourceRecordUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceRecordDelete(d *schema.ResourceData, m interface{}) error {
+	client := m.(*namecom.NameCom)
+
+	domain_name := d.Get("domain_name").(string)
+	request := namecom.ListRecordsRequest{DomainName: domain_name}
+	r, _ := client.ListRecords(&request)
+
+	// Get record_id from list of records matching `domain_name`
+	var record_id int32
+	for _, v := range r.Records {
+		if v.Host == d.Get("host").(string) {
+			record_id = v.ID
+		}
+	}
+
+	deleteRequest := namecom.DeleteRecordRequest{ID: record_id}
+	client.DeleteRecord(&deleteRequest)
+
+	d.SetId("")
 	return nil
 }
