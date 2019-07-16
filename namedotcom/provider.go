@@ -25,7 +25,7 @@ func Provider() terraform.ResourceProvider {
 		ResourcesMap: map[string]*schema.Resource{
 			"namedotcom_record": resourceRecord(),
 			// "namedotcom_domain":             resourceDomain(),
-			// "namedotcom_domain_nameservers": resourceDomainNameServers(),
+			"namedotcom_domain_nameservers": resourceDomainNameServers(),
 			// "namedotcom_domain_autorenew":  resourceDomainAutoRenew(),
 			// "namedotcom_domain_contact":    resourceDomainContact(),
 			// "namedotcom_domain_lock":       resourceDomainLock(),

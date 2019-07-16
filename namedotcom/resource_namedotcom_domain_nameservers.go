@@ -8,12 +8,12 @@ import (
 func resourceDomainNameServers() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceDomainNameServersCreate,
-		// Read:   resourceDomainNameServersRead,
-		// Update: resourceDomainNameServersUpdate,
-		// Delete: resourceDomainNameServersDelete,
+		Read:   resourceDomainNameServersRead,
+		Update: resourceDomainNameServersUpdate,
+		Delete: resourceDomainNameServersDelete,
 
 		Schema: map[string]*schema.Schema{
-			"domainName": &schema.Schema{
+			"domain_name": &schema.Schema{
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "DomainName is the punycode encoded value of the domain name.",
@@ -30,30 +30,39 @@ func resourceDomainNameServers() *schema.Resource {
 
 func resourceDomainNameServersCreate(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
+
+	domain_name := d.Get("domain_name").(string)
+
 	// Make api request to setNameServers
-	// Record state using resourceDomainNameServersRead function
 	request := namecom.SetNameserversRequest{
-		DomainName:  d.Get("domain_name").(string),
-		Nameservers: d.Get("nameservers").([]string),
+		DomainName: domain_name,
+	}
+	for _, nameserver := range d.Get("nameservers").([]interface{}) {
+		request.Nameservers = append(request.Nameservers, nameserver.(string))
 	}
 	client.SetNameservers(&request)
+
+	d.SetId(domain_name)
+
+	// Record state using resourceDomainNameServersRead function
 	// return resourceDomainNameServersRead(d, m)
 	return nil
 }
 
-// func resourceDomainNameServersRead(d *schema.ResourceData, m interface{}) error {
-// 	client := m.(*namecom.NameCom)
-// 	return nil
-// }
-//
-// func resourceDomainNameServersUpdate(d *schema.ResourceData, m interface{}) error {
-// 	client := m.(*namecom.NameCom)
-// 	return resourceDomainNameServersRead(d, m)
-// }
-//
-// func resourceDomainNameServersDelete(d *schema.ResourceData, m interface{}) error {
-// 	client := m.(*namecom.NameCom)
-//
-// 	d.SetId("")
-// 	return nil
-// }
+func resourceDomainNameServersRead(d *schema.ResourceData, m interface{}) error {
+	// client := m.(*namecom.NameCom)
+	return nil
+}
+
+func resourceDomainNameServersUpdate(d *schema.ResourceData, m interface{}) error {
+	// client := m.(*namecom.NameCom)
+	// return resourceDomainNameServersRead(d, m)
+	return nil
+}
+
+func resourceDomainNameServersDelete(d *schema.ResourceData, m interface{}) error {
+	// client := m.(*namecom.NameCom)
+
+	d.SetId("")
+	return nil
+}
