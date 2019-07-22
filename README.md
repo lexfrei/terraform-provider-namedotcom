@@ -1,3 +1,9 @@
+# Terraform Provider for [name.com](https://name.com) API
+
+[API Docs](https://www.name.com/api-docs)
+
+Currently only supports DNS records and setting nameservers for a domain zone.
+
 ## Usage
 
 Username and token must be generated from
@@ -26,7 +32,7 @@ resource "namedotcom_record" "foo" {
 }
 ```
 
-Or settings nameservers from a generated hosted_zone
+Setting nameservers from a generated hosted_zone
 
 ```HCL
 provider "aws" {
@@ -52,3 +58,17 @@ resource "namedotcom_domain_nameservers" "example_com" {
   ]
 }
 ```
+
+## TODO:
+- Add tests
+- Reset nameservers
+- Append other resources
+    - "namedotcom_domain":
+    - "namedotcom_domain_autorenew":
+    - "namedotcom_domain_contact":
+    - "namedotcom_domain_lock":
+    - "namedotcom_dnssec":
+    - "namedotcom_email_forwarding":
+    - "namedotcom_transfer":
+    - "namedotcom_url_forwarding":
+    - "namedotcom_vanity_nameserver":
