@@ -42,10 +42,12 @@ func resourceDomainNameServersCreate(d *schema.ResourceData, m interface{}) erro
 	}
 	client.SetNameservers(&request)
 
-	d.SetId(domain_name)
+	// // Record state using resourceDomainNameServersRead function
+	// if err := resourceDomainNameServersRead(d, meta); err != nil {
+	// 	return err
+	// }
 
-	// Record state using resourceDomainNameServersRead function
-	// return resourceDomainNameServersRead(d, m)
+	d.SetId(domain_name)
 	return nil
 }
 
@@ -61,8 +63,16 @@ func resourceDomainNameServersUpdate(d *schema.ResourceData, m interface{}) erro
 }
 
 func resourceDomainNameServersDelete(d *schema.ResourceData, m interface{}) error {
-	// client := m.(*namecom.NameCom)
+	client := m.(*namecom.NameCom)
 
+	domain_name := d.Get("domain_name").(string)
+	request := namecom.SetNameserversRequest{
+		DomainName: domain_name,
+	}
+	// Make api request to setNameServers
+	client.SetNameservers(&request)
+
+	// Record state using resourceDomainNameServersRead function
 	d.SetId("")
 	return nil
 }
