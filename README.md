@@ -3,7 +3,7 @@
 Username and token must be generated from
 `https://www.name.com/account/settings/api`
 
-```
+```HCL
 provider "namedotcom" {
   token = "0123456789"
   username = "mhumesf"
@@ -19,7 +19,7 @@ resource "namedotcom_record" "foo" {
 
 Or settings nameservers from a generated hosted_zone
 
-```
+```HCL
 provider "aws" {
   region = "us-west-2"
 }
