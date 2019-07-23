@@ -9,6 +9,15 @@ provider "namedotcom" {
   username = "mhumesf"
 }
 
+// example.com CNAME -> bar.com
+resource "namedotcom_record" "bar" {
+  domain_name = "example.com"
+  host = ""
+  record_type = "cname"
+  answer = "bar.com"
+}
+
+// foo.example.com -> 10.1.2.3
 resource "namedotcom_record" "foo" {
   domain_name = "example.com"
   host = "foo"
