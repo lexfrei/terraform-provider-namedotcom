@@ -61,7 +61,9 @@ resource "namedotcom_domain_nameservers" "example_com" {
 
 ## TODO:
 - Add tests
-- Reset nameservers
+- Currently when deleting nameservers records from terraform; the zone's
+  nameserver entries are emtpy. Need to revise function to restore/reset to
+  original name.com nameservers.
 - Append other resources
     - "namedotcom_domain":
     - "namedotcom_domain_autorenew":
