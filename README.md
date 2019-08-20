@@ -1,4 +1,4 @@
-# Terraform Provider for [name.com](https://name.com) API
+# Terraform Provider for [name.com](https://name.com)
 
 [API Docs](https://www.name.com/api-docs)
 
