@@ -87,13 +87,14 @@ func resourceRecordUpdate(d *schema.ResourceData, m interface{}) error {
 	// Pagination???
 
 	domain_name := d.Get("domain_name").(string)
+	host := d.Get("host").(string)
 	request := namecom.ListRecordsRequest{DomainName: domain_name}
 	r, _ := client.ListRecords(&request)
 
 	// Get record_id from list of records matching `domain_name`
 	var record_id int32
 	for _, v := range r.Records {
-		if v.DomainName == domain_name {
+		if v.DomainName == domain_name && v.Host == host {
 			record_id = v.ID
 		}
 	}
