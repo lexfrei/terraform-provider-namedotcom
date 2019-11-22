@@ -1,6 +1,7 @@
 package namedotcom
 
 import (
+	"fmt"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/namedotcom/go/namecom"
 	"strconv"
@@ -51,31 +52,39 @@ func resourceRecordCreate(d *schema.ResourceData, m interface{}) error {
 		Type:       d.Get("record_type").(string),
 		Answer:     d.Get("answer").(string),
 	}
-	client.CreateRecord(&record)
+
+	resp, err := client.CreateRecord(&record)
+	if err != nil {
+		return fmt.Errorf("Error GetRecord: %s", err)
+	}
+
+	d.SetId(strconv.Itoa(int(resp.ID)))
 	return resourceRecordRead(d, m)
 }
 
 func resourceRecordRead(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	domain_name := d.Get("domain_name").(string)
-	request := namecom.ListRecordsRequest{DomainName: domain_name}
-	r, _ := client.ListRecords(&request)
-
-	// Get record_id from list of records matching `domain_name`
-	var record_id int32
-	for _, v := range r.Records {
-		if v.DomainName == domain_name {
-			record_id = v.ID
-		}
+	// TODO handle error
+	recordID, err := strconv.ParseInt(d.Id(), 10, 32)
+	if err != nil {
+		return fmt.Errorf("Error converting Record ID: %s", err)
 	}
 
-	// Record tfstate id with record_id
-	d.SetId(strconv.Itoa(int(record_id)))
-	// d.Set("DomainName", folder.Name)
-	// d.Set("Host", folder.Parent)
-	// d.Set("Type", folder.DisplayName)
-	// d.Set("Answer", folder.LifecycleState)
+	request := namecom.GetRecordRequest{
+		DomainName: d.Get("domain_name").(string),
+		ID:         int32(recordID),
+	}
+
+	record, err := client.GetRecord(&request)
+	if err != nil {
+		return fmt.Errorf("Error GetRecord: %s", err)
+	}
+
+	d.Set("domain_name", record.DomainName)
+	d.Set("host", record.Host)
+	d.Set("record_type", record.Type)
+	d.Set("answer", record.Answer)
 
 	return nil
 }
@@ -86,45 +95,33 @@ func resourceRecordUpdate(d *schema.ResourceData, m interface{}) error {
 	// TODO
 	// Pagination???
 
-	domain_name := d.Get("domain_name").(string)
-	request := namecom.ListRecordsRequest{DomainName: domain_name}
-	r, _ := client.ListRecords(&request)
-
-	// Get record_id from list of records matching `domain_name`
-	var record_id int32
-	for _, v := range r.Records {
-		if v.DomainName == domain_name {
-			record_id = v.ID
-		}
-	}
-
 	updatedRecord := namecom.Record{
-		ID:         record_id,
 		DomainName: d.Get("domain_name").(string),
 		Host:       d.Get("host").(string),
 		Type:       d.Get("record_type").(string),
 		Answer:     d.Get("answer").(string),
 	}
-	client.UpdateRecord(&updatedRecord)
+
+	_, err := client.UpdateRecord(&updatedRecord)
+	if err != nil {
+		return fmt.Errorf("Error UpdateRecord: %s", err)
+	}
 	return resourceRecordRead(d, m)
 }
 
 func resourceRecordDelete(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	domain_name := d.Get("domain_name").(string)
-	request := namecom.ListRecordsRequest{DomainName: domain_name}
-	r, _ := client.ListRecords(&request)
-
-	// Get record_id from list of records matching `domain_name`
-	var record_id int32
-	for _, v := range r.Records {
-		if v.Host == d.Get("host").(string) {
-			record_id = v.ID
-		}
+	// TODO handle error
+	recordID, err := strconv.ParseInt(d.Id(), 10, 32)
+	if err != nil {
+		return fmt.Errorf("Error converting Record ID: %s", err)
 	}
 
-	deleteRequest := namecom.DeleteRecordRequest{DomainName: domain_name, ID: record_id}
+	deleteRequest := namecom.DeleteRecordRequest{
+		DomainName: d.Get("domain_name").(string),
+		ID:         int32(recordID),
+	}
 	client.DeleteRecord(&deleteRequest)
 
 	d.SetId("")

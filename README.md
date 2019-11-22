@@ -32,6 +32,24 @@ resource "namedotcom_record" "foo" {
 }
 ```
 
+Many records per domain example
+
+```HCL
+resource "namedotcom_record" "domain-me" {
+  domain_name = "domain.me"
+  record_type = "A"
+  for_each = {
+    "" = local.t6
+    www = local.t8
+    www1 = local.t8
+    www2 = local.t9
+  }
+
+  host = each.key
+  answer = each.value
+}
+```
+
 Setting nameservers from a generated hosted_zone
 
 ```HCL
