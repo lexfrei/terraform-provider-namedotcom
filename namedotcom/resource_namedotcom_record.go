@@ -65,7 +65,6 @@ func resourceRecordCreate(d *schema.ResourceData, m interface{}) error {
 func resourceRecordRead(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	// TODO handle error
 	recordID, err := strconv.ParseInt(d.Id(), 10, 32)
 	if err != nil {
 		return fmt.Errorf("Error converting Record ID: %s", err)
@@ -115,7 +114,6 @@ func resourceRecordUpdate(d *schema.ResourceData, m interface{}) error {
 func resourceRecordDelete(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	// TODO handle error
 	recordID, err := strconv.ParseInt(d.Id(), 10, 32)
 	if err != nil {
 		return fmt.Errorf("Error converting Record ID: %s", err)
