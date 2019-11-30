@@ -92,17 +92,20 @@ func resourceRecordRead(d *schema.ResourceData, m interface{}) error {
 func resourceRecordUpdate(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	// TODO
-	// Pagination???
+	recordID, err := strconv.ParseInt(d.Id(), 10, 32)
+	if err != nil {
+		return fmt.Errorf("Error Parsing Record ID: %s", err)
+	}
 
 	updatedRecord := namecom.Record{
+		ID:         int32(recordID),
 		DomainName: d.Get("domain_name").(string),
 		Host:       d.Get("host").(string),
 		Type:       d.Get("record_type").(string),
 		Answer:     d.Get("answer").(string),
 	}
 
-	_, err := client.UpdateRecord(&updatedRecord)
+	_, err = client.UpdateRecord(&updatedRecord)
 	if err != nil {
 		return fmt.Errorf("Error UpdateRecord: %s", err)
 	}
