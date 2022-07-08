@@ -1,4 +1,4 @@
-module github.com/mhumesf/terraform-provider-namedotcom
+module github.com/lexfrei/terraform-provider-namedotcom
 
 go 1.18
 
