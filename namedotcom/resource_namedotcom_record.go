@@ -45,34 +45,35 @@ func resourceRecord() *schema.Resource {
 	}
 }
 
-func resourceRecordCreate(d *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
-	record := namecom.Record{
-		DomainName: d.Get("domain_name").(string),
-		Host:       d.Get("host").(string),
-		Type:       d.Get("record_type").(string),
-		Answer:     d.Get("answer").(string),
-	}
-
-	resp, err := client.CreateRecord(&record)
+// resourceRecordCreate creates a new record in the Name.com API
+func resourceRecordCreate(data *schema.ResourceData, m interface{}) error {
+	resp, err := m.(*namecom.NameCom).CreateRecord(
+		&namecom.Record{
+			DomainName: data.Get("domain_name").(string),
+			Host:       data.Get("host").(string),
+			Type:       data.Get("record_type").(string),
+			Answer:     data.Get("answer").(string),
+		},
+	)
 	if err != nil {
-		return fmt.Errorf("Error GetRecord: %s", err)
+		return fmt.Errorf("Error CreateRecord: %s", err)
 	}
 
-	d.SetId(strconv.Itoa(int(resp.ID)))
-	return resourceRecordRead(d, m)
+	data.SetId(strconv.Itoa(int(resp.ID)))
+	return resourceRecordRead(data, m)
 }
 
-func resourceRecordRead(d *schema.ResourceData, m interface{}) error {
+// resourceRecordRead reads a record from the Name.com API
+func resourceRecordRead(data *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	recordID, err := strconv.ParseInt(d.Id(), 10, 32)
+	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
 		return fmt.Errorf("Error converting Record ID: %s", err)
 	}
 
 	request := namecom.GetRecordRequest{
-		DomainName: d.Get("domain_name").(string),
+		DomainName: data.Get("domain_name").(string),
 		ID:         int32(recordID),
 	}
 
@@ -81,51 +82,72 @@ func resourceRecordRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Error GetRecord: %s", err)
 	}
 
-	d.Set("domain_name", record.DomainName)
-	d.Set("host", record.Host)
-	d.Set("record_type", record.Type)
-	d.Set("answer", record.Answer)
+	err = data.Set("domain_name", record.DomainName)
+	if err != nil {
+		return fmt.Errorf("Error setting domain_name: %s", err)
+	}
+
+	err = data.Set("host", record.Host)
+	if err != nil {
+		return fmt.Errorf("Error setting host: %s", err)
+	}
+
+	err = data.Set("record_type", record.Type)
+	if err != nil {
+		return fmt.Errorf("Error setting record_type: %s", err)
+	}
+
+	err = data.Set("answer", record.Answer)
+	if err != nil {
+		return fmt.Errorf("Error setting answer: %s", err)
+	}
 
 	return nil
 }
 
-func resourceRecordUpdate(d *schema.ResourceData, m interface{}) error {
+// resourceRecordUpdate updates a record in the Name.com API
+func resourceRecordUpdate(data *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	recordID, err := strconv.ParseInt(d.Id(), 10, 32)
+	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
 		return fmt.Errorf("Error Parsing Record ID: %s", err)
 	}
 
 	updatedRecord := namecom.Record{
 		ID:         int32(recordID),
-		DomainName: d.Get("domain_name").(string),
-		Host:       d.Get("host").(string),
-		Type:       d.Get("record_type").(string),
-		Answer:     d.Get("answer").(string),
+		DomainName: data.Get("domain_name").(string),
+		Host:       data.Get("host").(string),
+		Type:       data.Get("record_type").(string),
+		Answer:     data.Get("answer").(string),
 	}
 
 	_, err = client.UpdateRecord(&updatedRecord)
 	if err != nil {
 		return fmt.Errorf("Error UpdateRecord: %s", err)
 	}
-	return resourceRecordRead(d, m)
+	return resourceRecordRead(data, m)
 }
 
-func resourceRecordDelete(d *schema.ResourceData, m interface{}) error {
+// resourceRecordDelete deletes a record from the Name.com API
+func resourceRecordDelete(data *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
-	recordID, err := strconv.ParseInt(d.Id(), 10, 32)
+	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
 		return fmt.Errorf("Error converting Record ID: %s", err)
 	}
 
 	deleteRequest := namecom.DeleteRecordRequest{
-		DomainName: d.Get("domain_name").(string),
+		DomainName: data.Get("domain_name").(string),
 		ID:         int32(recordID),
 	}
-	client.DeleteRecord(&deleteRequest)
 
-	d.SetId("")
+	_, err = client.DeleteRecord(&deleteRequest)
+	if err != nil {
+		return fmt.Errorf("Error DeleteRecord: %s", err)
+	}
+
+	data.SetId("")
 	return nil
 }
