@@ -1,7 +1,7 @@
 package namedotcom
 
 import (
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/namedotcom/go/namecom"
 )
 
@@ -13,12 +13,12 @@ func resourceDomainNameServers() *schema.Resource {
 		Delete: resourceDomainNameServersDelete,
 
 		Schema: map[string]*schema.Schema{
-			"domain_name": &schema.Schema{
+			"domain_name": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "DomainName is the punycode encoded value of the domain name.",
 			},
-			"nameservers": &schema.Schema{
+			"nameservers": {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Description: "Nameservers is the list of nameservers for this domain. If unspecified it defaults to your account default nameservers.",

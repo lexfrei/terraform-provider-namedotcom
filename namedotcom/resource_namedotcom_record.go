@@ -2,9 +2,10 @@ package namedotcom
 
 import (
 	"fmt"
-	"github.com/hashicorp/terraform/helper/schema"
-	"github.com/namedotcom/go/namecom"
 	"strconv"
+
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/namedotcom/go/namecom"
 )
 
 func resourceRecord() *schema.Resource {
@@ -15,27 +16,27 @@ func resourceRecord() *schema.Resource {
 		Delete: resourceRecordDelete,
 
 		Schema: map[string]*schema.Schema{
-			"record_id": &schema.Schema{
+			"record_id": {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Description: "Unique record id. Value is ignored on Create, and must match the URI on Update.",
 			},
-			"domain_name": &schema.Schema{
+			"domain_name": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "DomainName is the zone that the record belongs to",
 			},
-			"host": &schema.Schema{
+			"host": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Host is the hostname relative to the zone",
 			},
-			"record_type": &schema.Schema{
+			"record_type": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Type is one of the following: A, AAAA, ANAME, CNAME, MX, NS, SRV, or TXT",
 			},
-			"answer": &schema.Schema{
+			"answer": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Answer is either the IP address for A or AAAA records",
