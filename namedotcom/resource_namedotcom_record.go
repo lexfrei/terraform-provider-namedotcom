@@ -41,6 +41,11 @@ func resourceRecord() *schema.Resource {
 				Optional:    true,
 				Description: "Answer is either the IP address for A or AAAA records",
 			},
+			"ttl": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Description: "TTL is the time-to-live for the record",
+			},
 		},
 	}
 }
@@ -52,6 +57,7 @@ func resourceRecordCreate(d *schema.ResourceData, m interface{}) error {
 		Host:       d.Get("host").(string),
 		Type:       d.Get("record_type").(string),
 		Answer:     d.Get("answer").(string),
+		TTL:        d.Get("ttl").(uint32),
 	}
 
 	resp, err := client.CreateRecord(&record)
