@@ -2,7 +2,7 @@ package namedotcom
 
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/namedotcom/go/namecom"
+	"github.com/namedotcom/go/v4/namecom"
 )
 
 func resourceDomainNameServers() *schema.Resource {

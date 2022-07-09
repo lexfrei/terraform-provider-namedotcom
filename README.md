@@ -2,9 +2,34 @@
 
 [API Docs](https://www.name.com/api-docs)
 
-Currently only supports DNS records and setting nameservers for a domain zone.
+Supported features:
+
+- Set DNS records
+- Set NS records
 
 ## Usage
+
+### How to install the provider
+
+```HCL
+terraform {
+  required_providers {
+    namedotcom = {
+      source  = "lexfrei/namedotcom"
+      version = "1.1.6"
+    }
+  }
+}
+
+provider "namedotcom" {
+  username = var.namedotcom_username
+  token    = var.namedotcom_token
+}
+```
+
+### How to use the provider
+
+```HCL
 
 Username and token must be generated from
 `https://www.name.com/account/settings/api`
@@ -76,4 +101,3 @@ resource "namedotcom_domain_nameservers" "example_com" {
   ]
 }
 ```
-
