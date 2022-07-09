@@ -48,5 +48,3 @@ resource "namedotcom_domain_nameservers" "example_com" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-
-

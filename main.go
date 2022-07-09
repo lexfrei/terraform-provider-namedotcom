@@ -12,5 +12,6 @@ func main() {
 			ProviderFunc: func() terraform.ResourceProvider {
 				return namedotcom.Provider()
 			},
-		})
+		},
+	)
 }
