@@ -20,27 +20,24 @@ terraform {
     }
   }
 }
+```
 
+### How to create the provider
+
+Username and token must be generated from your account, [here](https://www.name.com/account/settings/api).
+
+```HCL
 provider "namedotcom" {
   username = var.namedotcom_username
   token    = var.namedotcom_token
 }
 ```
 
-### How to use the provider
+### Example usage
 
 ```HCL
-
-Username and token must be generated from
-`https://www.name.com/account/settings/api`
-
-```HCL
-provider "namedotcom" {
-  token = "0123456789"
-  username = "mhumesf"
-}
-
 // example.com CNAME -> bar.com
+
 resource "namedotcom_record" "bar" {
   domain_name = "example.com"
   host = ""
@@ -49,6 +46,7 @@ resource "namedotcom_record" "bar" {
 }
 
 // foo.example.com -> 10.1.2.3
+
 resource "namedotcom_record" "foo" {
   domain_name = "example.com"
   host = "foo"
@@ -83,8 +81,8 @@ provider "aws" {
 }
 
 provider "namedotcom" {
-  token = "0123456789"
-  username = "mhumesf"
+  token = "..."
+  username = "..."
 }
 
 resource "aws_route53_zone" "example_com" {
