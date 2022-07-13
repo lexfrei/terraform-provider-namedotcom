@@ -1,0 +1,67 @@
+{
+    "major": {
+        "stabilityDays": 3
+    },
+    "schedule": [
+        "before 2am"
+    ],
+    "timezone": "Europe/Moscow",
+    "dependencyDashboard": true,
+    "packageRules": [
+        {
+            "managers": [
+                "gomod"
+            ],
+            "updateTypes": [
+                "major"
+            ],
+            "postUpdateOptions": [
+                "gomodTidy",
+                "gomodUpdateImportPaths"
+            ],
+            "labels": [
+                "go major update"
+            ]
+        },
+        {
+            "managers": [
+                "gomod"
+            ],
+            "updateTypes": [
+                "minor",
+                "patch",
+                "pin",
+                "digest"
+            ],
+            "postUpdateOptions": [
+                "gomodTidy",
+                "gomodUpdateImportPaths"
+            ],
+            "labels": [
+                "go minor update"
+            ]
+        },
+        {
+            "matchDatasources": [
+                "docker"
+            ],
+            "labels": [
+                "docker update"
+            ],
+            "automerge": true
+        },
+        {
+            "matchDatasources": [
+                "github-actions",
+                "actions"
+            ],
+            "labels": [
+                "actions update"
+            ]
+        }
+    ],
+    "ignorePaths": [
+        "vendor/**"
+    ],
+    "automerge": true
+}
