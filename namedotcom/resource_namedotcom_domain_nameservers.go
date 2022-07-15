@@ -1,6 +1,8 @@
 package namedotcom
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
 )
@@ -40,25 +42,20 @@ func resourceDomainNameServersCreate(d *schema.ResourceData, m interface{}) erro
 	for _, nameserver := range d.Get("nameservers").([]interface{}) {
 		request.Nameservers = append(request.Nameservers, nameserver.(string))
 	}
-	client.SetNameservers(&request)
-
-	// // Record state using resourceDomainNameServersRead function
-	// if err := resourceDomainNameServersRead(d, meta); err != nil {
-	// 	return err
-	// }
+	_, err := client.SetNameservers(&request)
+	if err != nil {
+		return fmt.Errorf("Error SetNameservers: %s", err)
+	}
 
 	d.SetId(domain_name)
 	return nil
 }
 
 func resourceDomainNameServersRead(d *schema.ResourceData, m interface{}) error {
-	// client := m.(*namecom.NameCom)
 	return nil
 }
 
 func resourceDomainNameServersUpdate(d *schema.ResourceData, m interface{}) error {
-	// client := m.(*namecom.NameCom)
-	// return resourceDomainNameServersRead(d, m)
 	return nil
 }
 
@@ -70,7 +67,10 @@ func resourceDomainNameServersDelete(d *schema.ResourceData, m interface{}) erro
 		DomainName: domain_name,
 	}
 	// Make api request to setNameServers
-	client.SetNameservers(&request)
+	_, err := client.SetNameservers(&request)
+	if err != nil {
+		return fmt.Errorf("Error SetNameservers: %s", err)
+	}
 
 	// Record state using resourceDomainNameServersRead function
 	d.SetId("")
