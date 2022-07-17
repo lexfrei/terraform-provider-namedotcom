@@ -1,12 +1,13 @@
 package namedotcom
 
 import (
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"errors"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
 )
 
-func Provider() terraform.ResourceProvider {
+func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"token": {
@@ -39,7 +40,25 @@ func Provider() terraform.ResourceProvider {
 	}
 }
 
-func providerConfigure(d *schema.ResourceData) (interface{}, error) {
-	nc := namecom.New(d.Get("username").(string), d.Get("token").(string))
+func providerConfigure(data *schema.ResourceData) (interface{}, error) {
+	if data == nil {
+		return nil, errors.New("ResourceData is nil")
+	}
+
+	// Check for required fields
+	token, err := data.Get("token").(string)
+	if !err {
+		return nil, errors.New("token is required")
+	}
+	username, err := data.Get("username").(string)
+	if !err {
+		return nil, errors.New("username is required")
+	}
+	if token == "" || username == "" {
+		return nil, errors.New("Token and Username are required")
+	}
+
+	// Create a new Name.com client
+	nc := namecom.New(username, token)
 	return nc, nil
 }

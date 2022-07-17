@@ -3,7 +3,7 @@ package namedotcom
 import (
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
 )
 
@@ -62,6 +62,7 @@ func resourceDomainNameServersUpdate(d *schema.ResourceData, m interface{}) erro
 func resourceDomainNameServersDelete(d *schema.ResourceData, m interface{}) error {
 	client := m.(*namecom.NameCom)
 
+	// Make api request to setNameServers
 	domain_name := d.Get("domain_name").(string)
 	request := namecom.SetNameserversRequest{
 		DomainName: domain_name,

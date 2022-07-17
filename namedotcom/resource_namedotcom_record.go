@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
 )
 
@@ -46,8 +46,8 @@ func resourceRecord() *schema.Resource {
 }
 
 // resourceRecordCreate creates a new record in the Name.com API
-func resourceRecordCreate(data *schema.ResourceData, m interface{}) error {
-	resp, err := m.(*namecom.NameCom).CreateRecord(
+func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
+	resp, err := meta.(*namecom.NameCom).CreateRecord(
 		&namecom.Record{
 			DomainName: data.Get("domain_name").(string),
 			Host:       data.Get("host").(string),
@@ -60,12 +60,12 @@ func resourceRecordCreate(data *schema.ResourceData, m interface{}) error {
 	}
 
 	data.SetId(strconv.Itoa(int(resp.ID)))
-	return resourceRecordRead(data, m)
+	return resourceRecordRead(data, meta)
 }
 
 // resourceRecordRead reads a record from the Name.com API
-func resourceRecordRead(data *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
+func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
+	client := meta.(*namecom.NameCom)
 
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
@@ -106,8 +106,8 @@ func resourceRecordRead(data *schema.ResourceData, m interface{}) error {
 }
 
 // resourceRecordUpdate updates a record in the Name.com API
-func resourceRecordUpdate(data *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
+func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
+	client := meta.(*namecom.NameCom)
 
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
@@ -126,12 +126,12 @@ func resourceRecordUpdate(data *schema.ResourceData, m interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Error UpdateRecord: %s", err)
 	}
-	return resourceRecordRead(data, m)
+	return resourceRecordRead(data, meta)
 }
 
 // resourceRecordDelete deletes a record from the Name.com API
-func resourceRecordDelete(data *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
+func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
+	client := meta.(*namecom.NameCom)
 
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
