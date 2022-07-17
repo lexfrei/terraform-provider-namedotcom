@@ -1,5 +1,7 @@
 # Terraform Provider for [name.com](https://name.com)
 
+Special thanks to @mhumeSF for the original [name.com provider](https://github.com/mhumeSF/terraform-provider-namedotcom).
+
 [API Docs](https://www.name.com/api-docs)
 
 Supported features:
