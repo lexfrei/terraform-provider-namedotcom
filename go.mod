@@ -1,6 +1,6 @@
 module github.com/lexfrei/terraform-provider-namedotcom
 
-go 1.18
+go 1.19
 
 require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.20.0
