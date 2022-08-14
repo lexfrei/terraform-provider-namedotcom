@@ -15,7 +15,7 @@ jobs:
           go-version: "~1.19"
           check-latest: true
 
-      - name: Lint changelog file
+      - name: Lint mardkown files
         uses: avto-dev/markdown-lint@v1
         with:
           ignore: './vendor'
