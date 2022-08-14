@@ -103,13 +103,23 @@ resource "namedotcom_domain_nameservers" "example_com" {
 ```
 
 ### How to import record
-you need to use format "domain:id" as last parameter for import command
+
+You need to use format "domain:id" as last parameter for import command
+
+Import single record
+
 ```bash
 terraform import namedotcom_record.example_record domain_name:recordId
 ```
 
-to get recordId, you need to use namedotcom API for domain ListRecords and use ID for appropriate host
+Import one of mentionned records in for_each
+
+```bash
+terraform import 'namedotcom_record.example_record["hostname"]' domain_name:recordId
+```
+
+To get recordId, you need to use namedotcom API for domain ListRecords and use ID for appropriate host
+
 ```bash
 curl -u 'username:token' 'https://api.name.com/v4/domains/example.org/records'
 ```
-
