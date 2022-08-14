@@ -1,7 +1,7 @@
 package namedotcom
 
 import (
-	"fmt"
+	"github.com/pkg/errors"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
@@ -44,7 +44,7 @@ func resourceDomainNameServersCreate(d *schema.ResourceData, m interface{}) erro
 	}
 	_, err := client.SetNameservers(&request)
 	if err != nil {
-		return fmt.Errorf("Error SetNameservers: %s", err)
+		return errors.Wrap(err, "Error SetNameservers")
 	}
 
 	d.SetId(domain_name)
@@ -70,7 +70,7 @@ func resourceDomainNameServersDelete(d *schema.ResourceData, m interface{}) erro
 	// Make api request to setNameServers
 	_, err := client.SetNameservers(&request)
 	if err != nil {
-		return fmt.Errorf("Error SetNameservers: %s", err)
+		return errors.Wrap(err, "Error SetNameservers")
 	}
 
 	// Record state using resourceDomainNameServersRead function

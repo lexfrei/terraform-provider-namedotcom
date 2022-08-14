@@ -1,9 +1,10 @@
 package namedotcom
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
@@ -60,7 +61,7 @@ func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("Error CreateRecord: %s", err)
+		return errors.Wrap(err, "Error CreateRecord")
 	}
 
 	data.SetId(strconv.Itoa(int(resp.ID)))
@@ -76,7 +77,7 @@ func resourceRecordImporter(data *schema.ResourceData, meta interface{}) ([]*sch
 	}
 	err = data.Set("domain_name", importDomainName)
 	if err != nil {
-		return nil, fmt.Errorf("Error setting domain_name: %s", err)
+		return nil, errors.Wrap(err, "Error setting domain_name")
 	}
 	data.SetId(importId)
 
@@ -105,7 +106,7 @@ func resourceRecordImporterParseId(id string) (string, string, error) {
 	parts := strings.SplitN(id, ":", 2)
 
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", fmt.Errorf("unexpected format of ID (%s), expected domain:id", id)
+		return "", "", errors.New("unexpected format of ID, expected domain:id")
 	}
 
 	return parts[0], parts[1], nil
@@ -117,7 +118,7 @@ func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
 
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
-		return fmt.Errorf("Error converting Record ID: %s", err)
+		return errors.Wrap(err, "error converting Record ID")
 	}
 
 	request := namecom.GetRecordRequest{
@@ -127,27 +128,27 @@ func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
 
 	record, err := client.GetRecord(&request)
 	if err != nil {
-		return fmt.Errorf("Error GetRecord: %s", err)
+		return errors.Wrap(err, "Error GetRecord")
 	}
 
 	err = data.Set("domain_name", record.DomainName)
 	if err != nil {
-		return fmt.Errorf("Error setting domain_name: %s", err)
+		return errors.Wrap(err, "Error setting domain_name")
 	}
 
 	err = data.Set("host", record.Host)
 	if err != nil {
-		return fmt.Errorf("Error setting host: %s", err)
+		return errors.Wrap(err, "Error setting host")
 	}
 
 	err = data.Set("record_type", record.Type)
 	if err != nil {
-		return fmt.Errorf("Error setting record_type: %s", err)
+		return errors.Wrap(err, "Error setting record_type")
 	}
 
 	err = data.Set("answer", record.Answer)
 	if err != nil {
-		return fmt.Errorf("Error setting answer: %s", err)
+		return errors.Wrap(err, "Error setting answer")
 	}
 
 	return nil
@@ -159,7 +160,7 @@ func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
 
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
-		return fmt.Errorf("Error Parsing Record ID: %s", err)
+		return errors.Wrap(err, "error converting Record ID")
 	}
 
 	updatedRecord := namecom.Record{
@@ -172,7 +173,7 @@ func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
 
 	_, err = client.UpdateRecord(&updatedRecord)
 	if err != nil {
-		return fmt.Errorf("Error UpdateRecord: %s", err)
+		return errors.Wrap(err, "Error UpdateRecord")
 	}
 	return resourceRecordRead(data, meta)
 }
@@ -183,7 +184,7 @@ func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
 
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
-		return fmt.Errorf("Error converting Record ID: %s", err)
+		return errors.Wrap(err, "error converting Record ID")
 	}
 
 	deleteRequest := namecom.DeleteRecordRequest{
@@ -193,7 +194,7 @@ func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
 
 	_, err = client.DeleteRecord(&deleteRequest)
 	if err != nil {
-		return fmt.Errorf("Error DeleteRecord: %s", err)
+		return errors.Wrap(err, "Error DeleteRecord")
 	}
 
 	data.SetId("")

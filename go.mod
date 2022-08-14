@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.20.0
 	github.com/namedotcom/go/v4 v4.0.2
+	github.com/pkg/errors v0.9.1
 )
 
 require (
