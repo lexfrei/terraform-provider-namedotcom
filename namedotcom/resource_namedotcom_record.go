@@ -74,7 +74,10 @@ func resourceRecordImporter(data *schema.ResourceData, meta interface{}) ([]*sch
 	if err != nil {
 		return nil, err
 	}
-	data.Set("domain_name", importDomainName)
+	err = data.Set("domain_name", importDomainName)
+	if err != nil {
+		return fmt.Errorf("Error setting domain_name: %s", err)
+	}
 	data.SetId(importId)
 
 	// possible block to switch using format of importing id domain:host instead of domain:id
