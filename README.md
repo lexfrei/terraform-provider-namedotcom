@@ -106,15 +106,11 @@ resource "namedotcom_domain_nameservers" "example_com" {
 
 You need to use format "domain:id" as last parameter for import command
 
-Import single record
-
 ```bash
+# Import single record
 terraform import namedotcom_record.example_record domain_name:recordId
-```
 
-Import one of mentionned records in for_each
-
-```bash
+# Import one of mentionned records in for_each
 terraform import 'namedotcom_record.example_record["hostname"]' domain_name:recordId
 ```
 

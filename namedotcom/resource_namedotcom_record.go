@@ -69,34 +69,34 @@ func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
 
 // resourceRecordImporter import existing record from the Name.com API
 func resourceRecordImporter(data *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
-	//data.Id() last argument passed to terraform import, in format domain:id
+	// data.Id() is the last argument passed to terraform import, in format domain:id
 	importDomainName, importId, err := resourceRecordImporterParseId(data.Id())
 	if err != nil {
 		return nil, err
 	}
 	err = data.Set("domain_name", importDomainName)
 	if err != nil {
-		return fmt.Errorf("Error setting domain_name: %s", err)
+		return nil, fmt.Errorf("Error setting domain_name: %s", err)
 	}
 	data.SetId(importId)
 
 	// possible block to switch using format of importing id domain:host instead of domain:id
 
-	//resp, err := meta.(*namecom.NameCom).ListRecords(
-		//&namecom.ListRecordsRequest{
-			//DomainName: data.Get("domain_name").(string),
-		//},
-	//)
-	//if err != nil {
-		//return nil, fmt.Errorf("Error ImportRecord: %s", err)
-	//}
-	//for _, record := range resp.Records {
-		//if record.Host == importId{
-			//data.SetId(strconv.Itoa(int(record.ID)))
-			//return []*schema.ResourceData{data}, err
-		//}
-	//}
-	//return nil, fmt.Errorf("Error ImportRecord, host %s not found: %s", importId, err)
+	// resp, err := meta.(*namecom.NameCom).ListRecords(
+	// 	&namecom.ListRecordsRequest{
+	// 		DomainName: data.Get("domain_name").(string),
+	// 	},
+	// )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("Error ImportRecord: %s", err)
+	// }
+	// for _, record := range resp.Records {
+	// 	if record.Host == importId{
+	// 		data.SetId(strconv.Itoa(int(record.ID)))
+	// 		return []*schema.ResourceData{data}, err
+	// 	}
+	// }
+	// return nil, fmt.Errorf("Error ImportRecord, host %s not found: %s", importId, err)
 
 	return []*schema.ResourceData{data}, nil
 }
@@ -110,7 +110,6 @@ func resourceRecordImporterParseId(id string) (string, string, error) {
 
 	return parts[0], parts[1], nil
 }
-
 
 // resourceRecordRead reads a record from the Name.com API
 func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
