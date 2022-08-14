@@ -3,7 +3,7 @@ name: Lint
 on: push
 
 jobs:
-  lint:
+  golangci-lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -15,10 +15,60 @@ jobs:
           go-version: "~1.19"
           check-latest: true
 
+      - name: Run golangci
+        uses: golangci/golangci-lint-action@v3.2.0
+
+  lint-markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3.0.2
+
       - name: Lint mardkown files
-        uses: avto-dev/markdown-lint@v1
+        uses: avto-dev/markdown-lint@v1.5.0
         with:
           ignore: './vendor'
+          config: './.markdown-lint.yaml'
+          args: '.'
+
+  codeql-analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'go' ]
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ${{ matrix.language }}
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v2
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+  snyk-analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "~1.19"
+          check-latest: true
 
       - name: Run golangci
         uses: golangci/golangci-lint-action@v3.2.0
