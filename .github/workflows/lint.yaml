@@ -16,7 +16,7 @@ jobs:
           check-latest: true
 
       - name: Run golangci
-        uses: golangci/golangci-lint-action@v3.3.0
+        uses: golangci/golangci-lint-action@v3.3.1
 
   lint-markdown:
     runs-on: ubuntu-latest
@@ -71,7 +71,7 @@ jobs:
           check-latest: true
 
       - name: Run golangci
-        uses: golangci/golangci-lint-action@v3.3.0
+        uses: golangci/golangci-lint-action@v3.3.1
 
       - name: Setup Snyk
         uses: snyk/actions/setup@master
