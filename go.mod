@@ -3,7 +3,7 @@ module github.com/lexfrei/terraform-provider-namedotcom
 go 1.20
 
 require (
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.1
 	github.com/namedotcom/go/v4 v4.0.2
 	github.com/pkg/errors v0.9.1
 )
