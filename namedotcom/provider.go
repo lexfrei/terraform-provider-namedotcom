@@ -30,7 +30,7 @@ func Provider() *schema.Provider {
 			// "namedotcom_domain_autorenew":  resourceDomainAutoRenew(),
 			// "namedotcom_domain_contact":    resourceDomainContact(),
 			// "namedotcom_domain_lock":       resourceDomainLock(),
-			// "namedotcom_dnssec":            resourceDnssec(),
+			"namedotcom_dnssec": resourceDNSSEC(),
 			// "namedotcom_email_forwarding":  resourceEmailForwarding(),
 			// "namedotcom_transfer":          resourceTransfer(),
 			// "namedotcom_url_forwarding":    resourceUrlForwarding(),
