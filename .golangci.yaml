@@ -1,0 +1,68 @@
+linters-settings:
+  dupl:
+    threshold: 100
+
+  gocyclo:
+    min-complexity: 10
+
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - dupImport # https://github.com/go-critic/go-critic/issues/845
+
+  nolintlint:
+    allow-unused: false
+    require-explanation: false
+    require-specific: false
+
+  varnamelen:
+    max-distance: 5
+    min-name-length: 3
+    check-receiver: false
+    check-return: false
+    ignore-type-assert-ok: false
+    ignore-map-index-ok: false
+    ignore-chan-recv-ok: false
+    ignore-decls:
+      - wg sync.WaitGroup
+      - mu sync.Mutex
+      - ok bool
+
+  gomnd:
+    ignored-numbers:
+      - "10"
+      - "100"
+      - "2"
+      - "64"
+
+linters:
+  enable-all: true
+  disable:
+    - deadcode
+    - exhaustivestruct
+    - exhaustruct
+    - gci
+    - gochecknoglobals
+    - gochecknoinits
+    - golint
+    - ifshort
+    - interfacer
+    - maligned
+    - nosnakecase
+    - scopelint
+    - structcheck
+    - varcheck
+    - nonamedreturns
+
+run:
+  skip-dirs:
+    - vendor
