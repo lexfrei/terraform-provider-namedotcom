@@ -26,9 +26,9 @@ jobs:
       - name: Lint mardkown files
         uses: avto-dev/markdown-lint@v1.5.0
         with:
-          ignore: './vendor'
-          config: './.markdown-lint.yaml'
-          args: '.'
+          ignore: "./vendor"
+          config: "./.markdown-lint.yaml"
+          args: "."
 
   codeql-analyze:
     name: Analyze
@@ -41,18 +41,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'go' ]
+        language: ["go"]
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
-      with:
-        languages: ${{ matrix.language }}
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
 
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
