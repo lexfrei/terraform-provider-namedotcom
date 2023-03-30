@@ -7,6 +7,7 @@ linters:
     - dogsled
     - dupl
     - errcheck
+    - exportloopref
     - gochecknoinits
     - goconst
     - gocritic
@@ -14,17 +15,14 @@ linters:
     - godot
     - gofmt
     - goimports
-    - golint
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
-    - maligned
     - misspell
     - nakedret
     - prealloc
-    - scopelint
+    - revive
     - staticcheck
     - structcheck
     - typecheck
@@ -37,6 +35,7 @@ issues:
   exclude-rules:
     - path: _test\.go
       linters:
+        - goconst
         - prealloc
     - path: _test\.go
       text: "G306:"
