@@ -12,8 +12,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: "~1.19"
-          check-latest: true
+          go-version: "stable"
 
       - name: Run golangci
         uses: golangci/golangci-lint-action@v3.4.0
