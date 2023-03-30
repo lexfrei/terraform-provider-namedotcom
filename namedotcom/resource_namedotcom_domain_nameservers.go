@@ -1,7 +1,7 @@
 package namedotcom
 
 import (
-	"github.com/pkg/errors"
+	"github.com/cockroachdb/errors"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
@@ -21,8 +21,9 @@ func resourceDomainNameServers() *schema.Resource {
 				Description: "DomainName is the punycode encoded value of the domain name.",
 			},
 			"nameservers": {
-				Type:        schema.TypeList,
-				Optional:    true,
+				Type:     schema.TypeList,
+				Optional: true,
+				//nolint:lll //Description can be long
 				Description: "Nameservers is the list of nameservers for this domain. If unspecified it defaults to your account default nameservers.",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
@@ -30,43 +31,69 @@ func resourceDomainNameServers() *schema.Resource {
 	}
 }
 
-func resourceDomainNameServersCreate(d *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
+func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) error {
+	client, ok := m.(*namecom.NameCom)
+	if !ok {
+		return errors.New("Error converting interface to NameCom")
+	}
 
-	domain_name := d.Get("domain_name").(string)
+	domainName, ok := data.Get("domain_name").(string)
+	if !ok {
+		return errors.New("Error converting domain_name to string")
+	}
 
 	// Make api request to setNameServers
 	request := namecom.SetNameserversRequest{
-		DomainName: domain_name,
+		DomainName: domainName,
 	}
-	for _, nameserver := range d.Get("nameservers").([]interface{}) {
-		request.Nameservers = append(request.Nameservers, nameserver.(string))
+
+	nameservers, ok := data.Get("nameservers").([]interface{})
+	if !ok {
+		return errors.New("Error converting nameservers to []interface{}")
 	}
+
+	for _, nameserver := range nameservers {
+		nameserverString, ok := nameserver.(string)
+		if !ok {
+			return errors.New("Error converting nameserver to string")
+		}
+
+		request.Nameservers = append(request.Nameservers, nameserverString)
+	}
+
 	_, err := client.SetNameservers(&request)
 	if err != nil {
 		return errors.Wrap(err, "Error SetNameservers")
 	}
 
-	d.SetId(domain_name)
+	data.SetId(domainName)
+
 	return nil
 }
 
-func resourceDomainNameServersRead(d *schema.ResourceData, m interface{}) error {
+func resourceDomainNameServersRead(_ *schema.ResourceData, _ interface{}) error {
 	return nil
 }
 
-func resourceDomainNameServersUpdate(d *schema.ResourceData, m interface{}) error {
+func resourceDomainNameServersUpdate(_ *schema.ResourceData, _ interface{}) error {
 	return nil
 }
 
-func resourceDomainNameServersDelete(d *schema.ResourceData, m interface{}) error {
-	client := m.(*namecom.NameCom)
-
-	// Make api request to setNameServers
-	domain_name := d.Get("domain_name").(string)
-	request := namecom.SetNameserversRequest{
-		DomainName: domain_name,
+func resourceDomainNameServersDelete(data *schema.ResourceData, m interface{}) error {
+	client, ok := m.(*namecom.NameCom)
+	if !ok {
+		return errors.New("Error converting interface to NameCom")
 	}
+
+	domainName, ok := data.Get("domain_name").(string)
+	if !ok {
+		return errors.New("Error converting domain_name to string")
+	}
+
+	request := namecom.SetNameserversRequest{
+		DomainName: domainName,
+	}
+
 	// Make api request to setNameServers
 	_, err := client.SetNameservers(&request)
 	if err != nil {
@@ -74,6 +101,7 @@ func resourceDomainNameServersDelete(d *schema.ResourceData, m interface{}) erro
 	}
 
 	// Record state using resourceDomainNameServersRead function
-	d.SetId("")
+	data.SetId("")
+
 	return nil
 }
