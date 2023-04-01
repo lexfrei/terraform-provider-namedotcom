@@ -53,7 +53,7 @@ func resourceDNSSEC() *schema.Resource {
 	}
 }
 
-// resourceDNSSECCreate creates a new DNSSEC in the Name.com API
+// resourceDNSSECCreate creates a new DNSSEC in the Name.com API.
 func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
 	_, err := meta.(*namecom.NameCom).CreateDNSSEC(
 		&namecom.DNSSEC{
@@ -64,21 +64,28 @@ func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
 			Digest:     data.Get("digest").(string),
 		},
 	)
-
 	if err != nil {
 		return errors.Wrap(err, "Error CreateDNSSEC")
 	}
 
-	data.SetId(data.Get("domain_name").(string))
+	domainNameString, ok := data.Get("domain_name").(string)
+	if !ok {
+		return errors.New("Error getting domain_name")
+	}
+
+	data.SetId(domainNameString)
 
 	return resourceDNSSECRead(data, meta)
 }
 
-// resourceDNSSECImporter import existing DNSSEC from the Name.com API
+// resourceDNSSECImporter import existing DNSSEC from the Name.com API.
 func resourceDNSSECImporter(data *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
-	client := meta.(*namecom.NameCom)
+	client, ok := meta.(*namecom.NameCom)
+	if !ok {
+		return nil, errors.New("Error getting client")
+	}
 
-	importDomainName, importDigest, err := resourceDNSSECImporterParseId(data.Id())
+	importDomainName, importDigest, err := resourceDNSSECImporterParseID(data.Id())
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +130,8 @@ func resourceDNSSECImporter(data *schema.ResourceData, meta interface{}) ([]*sch
 	return []*schema.ResourceData{data}, nil
 }
 
-func resourceDNSSECImporterParseId(id string) (string, string, error) {
+// resourceDNSSECImporterParseID parses the ID of the DNSSEC.
+func resourceDNSSECImporterParseID(id string) (domainName, digest string, err error) {
 	parts := strings.SplitN(id, "_", 2)
 
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -133,13 +141,26 @@ func resourceDNSSECImporterParseId(id string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-// resourceDNSSECRead reads a DNSSEC from the Name.com API
+// resourceDNSSECRead reads a DNSSEC from the Name.com API.
 func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
-	client := meta.(*namecom.NameCom)
+	client, ok := meta.(*namecom.NameCom)
+	if !ok {
+		return errors.New("Error getting client")
+	}
+
+	domainNameString, ok := data.Get("domain_name").(string)
+	if !ok {
+		return errors.New("Error getting domain_name")
+	}
+
+	digestString, ok := data.Get("digest").(string)
+	if !ok {
+		return errors.New("Error getting digest")
+	}
 
 	request := namecom.GetDNSSECRequest{
-		DomainName: data.Get("domain_name").(string),
-		Digest:     data.Get("digest").(string),
+		DomainName: domainNameString,
+		Digest:     digestString,
 	}
 
 	DNSSEC, err := client.GetDNSSEC(&request)
@@ -175,13 +196,26 @@ func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-// resourceDNSSECDelete deletes a DNSSEC from the Name.com API
+// resourceDNSSECDelete deletes a DNSSEC from the Name.com API.
 func resourceDNSSECDelete(data *schema.ResourceData, meta interface{}) error {
-	client := meta.(*namecom.NameCom)
+	client, ok := meta.(*namecom.NameCom)
+	if !ok {
+		return errors.New("Error getting client")
+	}
+
+	domainNameString, ok := data.Get("domain_name").(string)
+	if !ok {
+		return errors.New("Error getting domain_name")
+	}
+
+	digestString, ok := data.Get("digest").(string)
+	if !ok {
+		return errors.New("Error getting digest")
+	}
 
 	deleteRequest := namecom.DeleteDNSSECRequest{
-		DomainName: data.Get("domain_name").(string),
-		Digest:     data.Get("digest").(string),
+		DomainName: domainNameString,
+		Digest:     digestString,
 	}
 
 	_, err := client.DeleteDNSSEC(&deleteRequest)
@@ -190,5 +224,6 @@ func resourceDNSSECDelete(data *schema.ResourceData, meta interface{}) error {
 	}
 
 	data.SetId("")
+
 	return nil
 }
