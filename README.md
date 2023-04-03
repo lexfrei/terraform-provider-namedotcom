@@ -6,91 +6,72 @@ Special thanks to @mhumeSF for the original [name.com provider](https://github.c
 
 Supported features:
 
-- Set DNS records
-- Set NS records
+- DNS records
+- NS records
+- DNSSEC
 
 ## Usage
 
-### How to install the provider
-
 ```HCL
+# Set up the provider
 terraform {
   required_providers {
     namedotcom = {
       source  = "lexfrei/namedotcom"
       version = "1.1.6"
     }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "3.38.0"
+    }
   }
 }
-```
 
-### How to create the provider
-
-Username and token must be generated from your account, [here](https://www.name.com/account/settings/api).
-
-```HCL
-provider "namedotcom" {
-  username = var.namedotcom_username
-  token    = var.namedotcom_token
-}
-```
-
-### Example usage
-
-```HCL
-// example.com CNAME -> bar.com
-
-resource "namedotcom_record" "bar" {
-  domain_name = "example.com"
-  host = ""
-  record_type = "cname"
-  answer = "bar.com"
-}
-
-// foo.example.com -> 10.1.2.3
-
-resource "namedotcom_record" "foo" {
-  domain_name = "example.com"
-  host = "foo"
-  record_type = "A"
-  answer = "10.1.2.3"
-}
-```
-
-Many records per domain example
-
-```HCL
-resource "namedotcom_record" "domain-me" {
-  domain_name = "domain.me"
-  record_type = "A"
-  for_each = {
-    "" = local.t6
-    www = local.t8
-    www1 = local.t8
-    www2 = local.t9
-  }
-
-  host = each.key
-  answer = each.value
-}
-```
-
-Setting nameservers from a generated hosted_zone
-
-```HCL
 provider "aws" {
   region = "us-west-2"
-}
-
-provider "namedotcom" {
-  token = "..."
-  username = "..."
 }
 
 resource "aws_route53_zone" "example_com" {
   name = "example.com"
 }
 
+# Create the provider with your account details
+provider "namedotcom" {
+  username = var.namedotcom_username
+  token    = var.namedotcom_token
+}
+
+# Example usage for creating DNS records
+resource "namedotcom_record" "bar" {
+  domain_name = "example.com"
+  host        = ""
+  record_type = "cname"
+  answer      = "foo.com"
+}
+
+resource "namedotcom_record" "foo" {
+  domain_name = "example.com"
+  host        = "foo"
+  record_type = "A"
+  answer      = "1.2.3.4"
+}
+
+# Example usage for creating many records per domain
+resource "namedotcom_record" "domain-me" {
+  domain_name = "domain.me"
+  record_type = "A"
+  for_each = {
+    ""   = "1.2.3.4"
+    www  = "2.3.4.5"
+    www1 = "3.4.5.6"
+    www2 = "4.5.6.7"
+  }
+
+  host   = each.key
+  answer = each.value
+}
+
+# Example usage for setting nameservers from a generated hosted_zone
 resource "namedotcom_domain_nameservers" "example_com" {
   domain_name = "example.com"
   nameservers = [
@@ -100,6 +81,25 @@ resource "namedotcom_domain_nameservers" "example_com" {
     "${aws_route53_zone.example_com.name_servers.3}",
   ]
 }
+
+# Example usage for using DNSSEC
+resource "aws_route53_key_signing_key" "dnssec" {
+  name                       = data.aws_route53_zone.example_com.name
+  hosted_zone_id             = data.aws_route53_zone.example_com.id
+  key_management_service_arn = aws_kms_key.dnssec.arn
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "namedotcom_dnssec" "dnssec" {
+  domain_name = aws_route53_zone.example_com.name
+  key_tag     = aws_route53_key_signing_key.dnssec.key_tag
+  algorithm   = aws_route53_key_signing_key.dnssec.signing_algorithm_type
+  digest_type = aws_route53_key_signing_key.dnssec.digest_algorithm_type
+  digest      = aws_route53_key_signing_key.dnssec.digest_value
+}
+
 ```
 
 ### How to import record
