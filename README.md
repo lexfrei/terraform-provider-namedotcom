@@ -119,3 +119,16 @@ To get recordId, you need to use namedotcom API for domain ListRecords and use I
 ```bash
 curl -u 'username:token' 'https://api.name.com/v4/domains/example.org/records'
 ```
+
+### How to import dnssec entry
+
+You need to use format "domain" as last parameter for import command
+
+```bash
+# Import single record
+terraform import namedotcom_dnssec.dnssec domain_name
+
+# Import one of mentionned records in for_each
+terraform import 'namedotcom_dnssec.dnssec["domain_name"]' domain_name
+```
+
