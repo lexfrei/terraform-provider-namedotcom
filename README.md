@@ -131,4 +131,3 @@ terraform import namedotcom_dnssec.dnssec domain_name
 # Import one of mentionned records in for_each
 terraform import 'namedotcom_dnssec.dnssec["domain_name"]' domain_name
 ```
-
