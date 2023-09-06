@@ -16,7 +16,6 @@ linters-settings:
       - opinionated
       - performance
       - style
-      - depguard
     disabled-checks:
       - dupImport # https://github.com/go-critic/go-critic/issues/845
 
@@ -49,6 +48,7 @@ linters:
   enable-all: true
   disable:
     - deadcode
+    - depguard
     - exhaustivestruct
     - exhaustruct
     - gci
@@ -58,11 +58,11 @@ linters:
     - ifshort
     - interfacer
     - maligned
+    - nonamedreturns
     - nosnakecase
     - scopelint
     - structcheck
     - varcheck
-    - nonamedreturns
 
 run:
   skip-dirs:
