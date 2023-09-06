@@ -3,7 +3,7 @@ module github.com/lexfrei/terraform-provider-namedotcom
 go 1.20
 
 require (
-	github.com/cockroachdb/errors v1.9.1
+	github.com/cockroachdb/errors v1.11.1
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.1
 	github.com/namedotcom/go/v4 v4.0.2
 )
@@ -12,7 +12,7 @@ require (
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
-	github.com/cockroachdb/redact v1.1.3 // indirect
+	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/getsentry/sentry-go v0.19.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
