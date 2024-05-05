@@ -15,7 +15,7 @@ jobs:
           go-version: "stable"
 
       - name: Run golangci
-        uses: golangci/golangci-lint-action@v5.1.0
+        uses: golangci/golangci-lint-action@v5.3.0
         with:
           args: --timeout 5m
 
