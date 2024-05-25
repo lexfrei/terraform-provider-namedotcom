@@ -5,7 +5,7 @@ go 1.21
 toolchain go1.22.3
 
 require (
-	github.com/cockroachdb/errors v1.11.1
+	github.com/cockroachdb/errors v1.11.2
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.34.0
 	github.com/namedotcom/go/v4 v4.0.2
 )
