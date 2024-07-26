@@ -10,17 +10,17 @@ import (
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
-			"token": {
-				Type:        schema.TypeString,
-				Required:    true,
-				DefaultFunc: schema.EnvDefaultFunc("TOKEN", nil),
-				Description: "Name.com API Token Value",
-			},
 			"username": {
 				Type:        schema.TypeString,
 				Required:    true,
-				DefaultFunc: schema.EnvDefaultFunc("USERNAME", nil),
-				Description: "Name.com API Username",
+				DefaultFunc: schema.EnvDefaultFunc("NAMEDOTCOM_USERNAME", nil),
+				Description: "Name.com API Username; can alternatively be specified via `NAMEDOTCOM_USERNAME` environment variable.",
+			},
+			"token": {
+				Type:        schema.TypeString,
+				Required:    true,
+				DefaultFunc: schema.EnvDefaultFunc("NAMEDOTCOM_TOKEN", nil),
+				Description: "Name.com API Token Value; can alternatively be specified via `NAMEDOTCOM_TOKEN` environment variable.",
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
