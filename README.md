@@ -12,7 +12,7 @@ Supported features:
 
 ## Usage
 
-```HCL
+```hcl
 # Set up the provider
 terraform {
   required_providers {

@@ -12,7 +12,7 @@ description: |-
 
 Setting nameservers from a generated hosted_zone
 
-```HCL
+```hcl
 provider "aws" {
   region = "us-west-2"
 }
