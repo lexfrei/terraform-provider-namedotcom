@@ -10,7 +10,7 @@ description: |-
 
 ## Example Usage
 
-```HCL
+```hcl
 // example.com CNAME -> bar.com
 
 resource "namedotcom_record" "bar" {
@@ -32,7 +32,7 @@ resource "namedotcom_record" "foo" {
 
 Many records per domain example
 
-```HCL
+```hcl
 resource "namedotcom_record" "domain-me" {
   domain_name = "domain.me"
   record_type = "A"

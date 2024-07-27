@@ -10,14 +10,15 @@ description: |-
 
 This provider allows you to manage your [namedotcom](https://www.namedotcom.com/) account.
 
-Currently, this provider only supports the following resources:
+Currently, this provider supports the following resources:
 
-- [namedotcom_domain_nameservers](resources/domain_nameservers.md)
-- [namedotcom_record](resources/record.md)
+- [`namedotcom_dnssec`](resources/dnssec.md)
+- [`namedotcom_domain_nameservers`](resources/domain_nameservers.md)
+- [`namedotcom_record`](resources/record.md)
 
 ## Example Usage
 
-```HCL
+```hcl
 terraform {
   required_providers {
     namedotcom = {
@@ -41,5 +42,5 @@ provider "namedotcom" {
 
 ### Required
 
-- `token` (String) Name.com API Token Value
-- `username` (String) Name.com API Username
+- `username` (String) Name.com API Username; can alternatively be specified via `NAMEDOTCOM_USERNAME` environment variable.
+- `token` (String) Name.com API Token Value; can alternatively be specified via `NAMEDOTCOM_TOKEN` environment variable.
