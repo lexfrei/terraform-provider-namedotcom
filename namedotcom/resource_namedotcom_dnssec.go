@@ -58,9 +58,9 @@ func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
 	_, err := meta.(*namecom.NameCom).CreateDNSSEC(
 		&namecom.DNSSEC{
 			DomainName: data.Get("domain_name").(string),
-			KeyTag:     data.Get("key_tag").(int32),
-			Algorithm:  data.Get("algorithm").(int32),
-			DigestType: data.Get("digest_type").(int32),
+			KeyTag:     int32(data.Get("key_tag").(int)),
+			Algorithm:  int32(data.Get("algorithm").(int)),
+			DigestType: int32(data.Get("digest_type").(int)),
 			Digest:     data.Get("digest").(string),
 		},
 	)
