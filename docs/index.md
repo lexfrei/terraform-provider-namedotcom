@@ -41,5 +41,5 @@ provider "namedotcom" {
 
 ### Required
 
-- `token` (String) Name.com API Token Value
-- `username` (String) Name.com API Username
+- `username` (String) Name.com API Username; can alternatively be specified via `NAMEDOTCOM_USERNAME` environment variable.
+- `token` (String) Name.com API Token Value; can alternatively be specified via `NAMEDOTCOM_TOKEN` environment variable.
