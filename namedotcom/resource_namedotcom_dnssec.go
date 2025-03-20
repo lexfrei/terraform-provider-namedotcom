@@ -1,7 +1,6 @@
 package namedotcom
 
 import (
-	"math"
 	"strings"
 
 	"github.com/cockroachdb/errors"
@@ -56,89 +55,25 @@ func resourceDNSSEC() *schema.Resource {
 
 // resourceDNSSECCreate creates a new DNSSEC in the Name.com API.
 func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
-	client, ok := meta.(*namecom.NameCom)
-	if !ok {
-		return errors.New("Error getting client")
-	}
-
-	domainName, ok := data.Get("domain_name").(string)
-	if !ok || domainName == "" {
-		return errors.New("Error getting domain_name: must be a non-empty string")
-	}
-
-	keyTagInt, ok := data.Get("key_tag").(int)
-	if !ok {
-		return errors.New("Error getting key_tag: must be an integer")
-	}
-	// Check for integer overflow before conversion
-	if keyTagInt < math.MinInt32 || keyTagInt > math.MaxInt32 {
-		return errors.New("Error: key_tag is outside the valid range for int32")
-	}
-
-	keyTag := int32(keyTagInt)
-
-	algorithmInt, ok := data.Get("algorithm").(int)
-	if !ok {
-		return errors.New("Error getting algorithm: must be an integer")
-	}
-	// Check for integer overflow before conversion
-	if algorithmInt < math.MinInt32 || algorithmInt > math.MaxInt32 {
-		return errors.New("Error: algorithm is outside the valid range for int32")
-	}
-
-	algorithm := int32(algorithmInt)
-
-	digestTypeInt, ok := data.Get("digest_type").(int)
-	if !ok {
-		return errors.New("Error getting digest_type: must be an integer")
-	}
-	// Check for integer overflow before conversion
-	if digestTypeInt < math.MinInt32 || digestTypeInt > math.MaxInt32 {
-		return errors.New("Error: digest_type is outside the valid range for int32")
-	}
-
-	digestType := int32(digestTypeInt)
-
-	digest, ok := data.Get("digest").(string)
-	if !ok || digest == "" {
-		return errors.New("Error getting digest: must be a non-empty string")
-	}
-
-	// Further validation of DNSSEC parameters
-	if keyTag < 0 || keyTag > 65535 {
-		return errors.New("Error: key_tag must be between 0 and 65535")
-	}
-
-	// Algorithm validation based on IANA registry
-	validAlgorithms := map[int32]bool{
-		1: true, 2: true, 3: true, 5: true, 6: true, 7: true, 8: true,
-		10: true, 12: true, 13: true, 14: true, 15: true, 16: true,
-	}
-	if !validAlgorithms[algorithm] {
-		return errors.New("Error: algorithm is not a valid DNSSEC algorithm number")
-	}
-
-	// Digest type validation based on IANA registry
-	validDigestTypes := map[int32]bool{1: true, 2: true, 3: true, 4: true}
-	if !validDigestTypes[digestType] {
-		return errors.New("Error: digest_type is not a valid DNSSEC digest type")
-	}
-
-	// Create the DNSSEC record with validated parameters
-	_, err := client.CreateDNSSEC(
+	_, err := meta.(*namecom.NameCom).CreateDNSSEC(
 		&namecom.DNSSEC{
-			DomainName: domainName,
-			KeyTag:     keyTag,
-			Algorithm:  algorithm,
-			DigestType: digestType,
-			Digest:     digest,
+			DomainName: data.Get("domain_name").(string),
+			KeyTag:     int32(data.Get("key_tag").(int)),
+			Algorithm:  int32(data.Get("algorithm").(int)),
+			DigestType: int32(data.Get("digest_type").(int)),
+			Digest:     data.Get("digest").(string),
 		},
 	)
 	if err != nil {
 		return errors.Wrap(err, "Error CreateDNSSEC")
 	}
 
-	data.SetId(domainName)
+	domainNameString, ok := data.Get("domain_name").(string)
+	if !ok {
+		return errors.New("Error getting domain_name")
+	}
+
+	data.SetId(domainNameString)
 
 	return resourceDNSSECRead(data, meta)
 }

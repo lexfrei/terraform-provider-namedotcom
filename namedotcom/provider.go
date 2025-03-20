@@ -14,13 +14,13 @@ func Provider() *schema.Provider {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("NAMEDOTCOM_USERNAME", nil),
-				Description: "Name.com API Username; can alternatively be specified via `NAMEDOTCOM_USERNAME` environment variable",
+				Description: "Name.com API Username; can alternatively be specified via `NAMEDOTCOM_USERNAME` environment variable.",
 			},
 			"token": {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("NAMEDOTCOM_TOKEN", nil),
-				Description: "Name.com API Token Value; can alternatively be specified via `NAMEDOTCOM_TOKEN` environment variable",
+				Description: "Name.com API Token Value; can alternatively be specified via `NAMEDOTCOM_TOKEN` environment variable.",
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{

@@ -1,7 +1,6 @@
 package namedotcom
 
 import (
-	"math"
 	"strconv"
 	"strings"
 
@@ -10,21 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
 )
-
-// Constants for record types and TTL values.
-const (
-	RecordTypeMX  = "MX"
-	RecordTypeSRV = "SRV"
-	MinTTL        = 300
-	MaxPriority   = 65535
-)
-
-// Valid DNS record types.
-var validRecordTypes = map[string]bool{
-	"A": true, "AAAA": true, "CNAME": true, RecordTypeMX: true,
-	"TXT": true, "NS": true, RecordTypeSRV: true, "CAA": true,
-	"TLSA": true, "SSHFP": true, "PTR": true,
-}
 
 func resourceRecord() *schema.Resource {
 	return &schema.Resource{
@@ -66,105 +50,21 @@ func resourceRecord() *schema.Resource {
 	}
 }
 
-// resourceRecordCreate creates a new DNS record in the Name.com API.
+// resourceRecordCreate creates a new record in the Name.com API.
 func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
-	client, ok := meta.(*namecom.NameCom)
-	if !ok {
-		return errors.New("error getting client")
-	}
-
-	domainName, ok := data.Get("domain_name").(string)
-	if !ok || domainName == "" {
-		return errors.New("error getting domain_name: must be a non-empty string")
-	}
-
-	host, ok := data.Get("host").(string)
-	if !ok {
-		return errors.New("error getting host: must be a string")
-	}
-
-	recordType, ok := data.Get("type").(string)
-	if !ok || recordType == "" {
-		return errors.New("error getting type: must be a non-empty string")
-	}
-
-	// Validate record type
-	if !validRecordTypes[recordType] {
-		return errors.New("error: type must be a valid DNS record type")
-	}
-
-	answer, ok := data.Get("answer").(string)
-	if !ok || answer == "" {
-		return errors.New("error getting answer: must be a non-empty string")
-	}
-
-	ttlInt, ok := data.Get("ttl").(int)
-	if !ok {
-		return errors.New("error getting ttl: must be an integer")
-	}
-
-	// Validate TTL
-	if ttlInt < 0 {
-		return errors.New("error: ttl cannot be negative")
-	}
-
-	if ttlInt > math.MaxUint32 {
-		return errors.New("error: ttl exceeds maximum value for uint32")
-	}
-
-	if uint32(ttlInt) < MinTTL {
-		return errors.New("error: ttl must be at least 300 seconds")
-	}
-
-	if ttlInt < math.MinInt32 || ttlInt > math.MaxInt32 {
-		return errors.New("error: ttl is outside the valid range for int32")
-	}
-
-	ttl := uint32(ttlInt)
-
-	// Create the record with validated parameters
-	record := &namecom.Record{
-		DomainName: domainName,
-		Host:       host,
-		Type:       recordType,
-		Answer:     answer,
-		TTL:        ttl,
-	}
-
-	// Handle priority for MX and SRV records
-	//nolint:nestif // This is a valid use of nesting
-	if recordType == RecordTypeMX || recordType == RecordTypeSRV {
-		priorityInt, ok := data.Get("priority").(int)
-		if !ok {
-			return errors.New("error getting priority: must be an integer for MX or SRV records")
-		}
-
-		// Validate priority
-		if priorityInt < 0 {
-			return errors.New("error: priority cannot be negative")
-		}
-
-		if priorityInt > math.MaxUint32 {
-			return errors.New("error: priority exceeds maximum value for uint32")
-		}
-
-		if uint32(priorityInt) > MaxPriority {
-			return errors.New("error: priority must be between 0 and 65535")
-		}
-
-		if priorityInt < math.MinInt32 || priorityInt > math.MaxInt32 {
-			return errors.New("error: priority is outside the valid range for int32")
-		}
-
-		record.Priority = uint32(priorityInt)
-	}
-
-	createResponse, err := client.CreateRecord(record)
+	resp, err := meta.(*namecom.NameCom).CreateRecord(
+		&namecom.Record{
+			DomainName: data.Get("domain_name").(string),
+			Host:       data.Get("host").(string),
+			Type:       data.Get("record_type").(string),
+			Answer:     data.Get("answer").(string),
+		},
+	)
 	if err != nil {
-		return errors.Wrap(err, "error CreateRecord")
+		return errors.Wrap(err, "Error CreateRecord")
 	}
 
-	data.SetId(strconv.Itoa(int(createResponse.ID)))
+	data.SetId(strconv.Itoa(int(resp.ID)))
 
 	return resourceRecordRead(data, meta)
 }

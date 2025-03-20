@@ -37,7 +37,7 @@ linters-settings:
       - mu sync.Mutex
       - ok bool
 
-  mnd:
+  gomnd:
     ignored-numbers:
       - "10"
       - "100"
@@ -63,3 +63,7 @@ linters:
     - scopelint
     - structcheck
     - varcheck
+
+run:
+  skip-dirs:
+    - vendor
