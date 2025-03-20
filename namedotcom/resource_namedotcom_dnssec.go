@@ -55,6 +55,7 @@ func resourceDNSSEC() *schema.Resource {
 
 // resourceDNSSECCreate creates a new DNSSEC in the Name.com API.
 func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
+	rl.Wait(ctx)
 	_, err := meta.(*namecom.NameCom).CreateDNSSEC(
 		&namecom.DNSSEC{
 			DomainName: data.Get("domain_name").(string),
@@ -80,6 +81,7 @@ func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
 
 // resourceDNSSECImporter import existing DNSSEC from the Name.com API.
 func resourceDNSSECImporter(data *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	rl.Wait(ctx)
 	client, ok := meta.(*namecom.NameCom)
 	if !ok {
 		return nil, errors.New("Error getting client")
@@ -143,6 +145,7 @@ func resourceDNSSECImporterParseID(id string) (domainName, digest string, err er
 
 // resourceDNSSECRead reads a DNSSEC from the Name.com API.
 func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
+	rl.Wait(ctx)
 	client, ok := meta.(*namecom.NameCom)
 	if !ok {
 		return errors.New("Error getting client")
@@ -198,6 +201,7 @@ func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
 
 // resourceDNSSECDelete deletes a DNSSEC from the Name.com API.
 func resourceDNSSECDelete(data *schema.ResourceData, meta interface{}) error {
+	rl.Wait(ctx)
 	client, ok := meta.(*namecom.NameCom)
 	if !ok {
 		return errors.New("Error getting client")

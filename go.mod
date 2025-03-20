@@ -1,6 +1,6 @@
 module github.com/lexfrei/terraform-provider-namedotcom
 
-go 1.22.0
+go 1.23.0
 
 toolchain go1.23.3
 
@@ -8,6 +8,7 @@ require (
 	github.com/cockroachdb/errors v1.11.3
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.35.0
 	github.com/namedotcom/go/v4 v4.0.2
+	golang.org/x/time v0.11.0
 )
 
 require (
