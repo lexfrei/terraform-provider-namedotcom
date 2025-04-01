@@ -1,11 +1,19 @@
 package namedotcom
 
 import (
+	"context"
+
 	"github.com/cockroachdb/errors"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
+
+	"golang.org/x/time/rate"
 )
+
+// Global rate limiter
+var rl = rate.NewLimiter(20, 20)
+var ctx = context.Background()
 
 func Provider() *schema.Provider {
 	return &schema.Provider{

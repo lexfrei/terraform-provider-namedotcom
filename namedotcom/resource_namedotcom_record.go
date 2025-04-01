@@ -52,6 +52,7 @@ func resourceRecord() *schema.Resource {
 
 // resourceRecordCreate creates a new record in the Name.com API.
 func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
+	rl.Wait(ctx)
 	resp, err := meta.(*namecom.NameCom).CreateRecord(
 		&namecom.Record{
 			DomainName: data.Get("domain_name").(string),
@@ -101,6 +102,7 @@ func resourceRecordImporterParseID(id string) (domain, recordID string, err erro
 
 // resourceRecordRead reads a record from the Name.com API.
 func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
+	rl.Wait(ctx)
 	client, ok := meta.(*namecom.NameCom)
 	if !ok {
 		return errors.New("Error converting meta to Name.com client")
@@ -151,6 +153,7 @@ func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
 
 // resourceRecordUpdate updates a record in the Name.com API.
 func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
+	rl.Wait(ctx)
 	client, ok := meta.(*namecom.NameCom)
 	if !ok {
 		return errors.New("Error converting meta to Name.com client")
@@ -199,6 +202,7 @@ func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
 
 // resourceRecordDelete deletes a record from the Name.com API.
 func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
+	rl.Wait(ctx)
 	client, ok := meta.(*namecom.NameCom)
 	if !ok {
 		return errors.New("Error converting meta to Name.com client")
