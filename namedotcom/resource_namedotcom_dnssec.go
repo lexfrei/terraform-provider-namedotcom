@@ -1,6 +1,7 @@
 package namedotcom
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/cockroachdb/errors"
@@ -8,6 +9,77 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
 )
+
+// ErrValueOutsideInt32Range is returned when a value cannot be safely converted to int32.
+var ErrValueOutsideInt32Range = errors.New("value outside of int32 range")
+
+// validateIntForInt32 ensures an integer is within int32 range.
+func validateIntForInt32(value int, fieldName string) error {
+	if value > 2147483647 || value < -2147483648 {
+		return fmt.Errorf("%s: %w", fieldName, ErrValueOutsideInt32Range)
+	}
+
+	return nil
+}
+
+// getDNSSECFromResourceData builds a DNSSEC struct from ResourceData.
+func getDNSSECFromResourceData(data *schema.ResourceData) (*namecom.DNSSEC, error) {
+	// Get and validate values
+	keyTagValue, isInt := data.Get("key_tag").(int)
+	if !isInt {
+		return nil, errors.New("Error getting key_tag as int")
+	}
+
+	algorithmValue, isInt := data.Get("algorithm").(int)
+	if !isInt {
+		return nil, errors.New("Error getting algorithm as int")
+	}
+
+	digestTypeValue, isInt := data.Get("digest_type").(int)
+	if !isInt {
+		return nil, errors.New("Error getting digest_type as int")
+	}
+
+	// Validate int32 ranges
+	if err := validateIntForInt32(keyTagValue, "key_tag"); err != nil {
+		return nil, err
+	}
+
+	if err := validateIntForInt32(algorithmValue, "algorithm"); err != nil {
+		return nil, err
+	}
+
+	if err := validateIntForInt32(digestTypeValue, "digest_type"); err != nil {
+		return nil, err
+	}
+
+	// Get string values
+	domainName, isStr := data.Get("domain_name").(string)
+	if !isStr {
+		return nil, errors.New("Error getting domain_name as string")
+	}
+
+	digest, isStr := data.Get("digest").(string)
+	if !isStr {
+		return nil, errors.New("Error getting digest as string")
+	}
+
+	// Build the DNSSEC struct
+	//nolint:gosec // Safe to convert to int32 now (validated above)
+	keyTag32 := int32(keyTagValue)
+	//nolint:gosec // Safe to convert to int32 now (validated above)
+	algorithm32 := int32(algorithmValue)
+	//nolint:gosec // Safe to convert to int32 now (validated above)
+	digestType32 := int32(digestTypeValue)
+
+	return &namecom.DNSSEC{
+		DomainName: domainName,
+		KeyTag:     keyTag32,
+		Algorithm:  algorithm32,
+		DigestType: digestType32,
+		Digest:     digest,
+	}, nil
+}
 
 func resourceDNSSEC() *schema.Resource {
 	return &schema.Resource{
@@ -55,33 +127,32 @@ func resourceDNSSEC() *schema.Resource {
 
 // resourceDNSSECCreate creates a new DNSSEC in the Name.com API.
 func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
-	_, err := meta.(*namecom.NameCom).CreateDNSSEC(
-		&namecom.DNSSEC{
-			DomainName: data.Get("domain_name").(string),
-			KeyTag:     int32(data.Get("key_tag").(int)),
-			Algorithm:  int32(data.Get("algorithm").(int)),
-			DigestType: int32(data.Get("digest_type").(int)),
-			Digest:     data.Get("digest").(string),
-		},
-	)
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
+		return errors.New("Error converting meta to Name.com client")
+	}
+
+	// Build the DNSSEC struct from resource data
+	dnssec, err := getDNSSECFromResourceData(data)
+	if err != nil {
+		return err
+	}
+
+	// Create the DNSSEC record
+	_, err = client.CreateDNSSEC(dnssec)
 	if err != nil {
 		return errors.Wrap(err, "Error CreateDNSSEC")
 	}
 
-	domainNameString, ok := data.Get("domain_name").(string)
-	if !ok {
-		return errors.New("Error getting domain_name")
-	}
-
-	data.SetId(domainNameString)
+	data.SetId(dnssec.DomainName)
 
 	return resourceDNSSECRead(data, meta)
 }
 
 // resourceDNSSECImporter import existing DNSSEC from the Name.com API.
 func resourceDNSSECImporter(data *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
-	client, ok := meta.(*namecom.NameCom)
-	if !ok {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
 		return nil, errors.New("Error getting client")
 	}
 
@@ -132,6 +203,7 @@ func resourceDNSSECImporter(data *schema.ResourceData, meta interface{}) ([]*sch
 
 // resourceDNSSECImporterParseID parses the ID of the DNSSEC.
 func resourceDNSSECImporterParseID(id string) (domainName, digest string, err error) {
+	//nolint:mnd // 2 is the expected number of parts
 	parts := strings.SplitN(id, "_", 2)
 
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -143,18 +215,18 @@ func resourceDNSSECImporterParseID(id string) (domainName, digest string, err er
 
 // resourceDNSSECRead reads a DNSSEC from the Name.com API.
 func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
-	client, ok := meta.(*namecom.NameCom)
-	if !ok {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
 		return errors.New("Error getting client")
 	}
 
-	domainNameString, ok := data.Get("domain_name").(string)
-	if !ok {
+	domainNameString, isStr := data.Get("domain_name").(string)
+	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
 
-	digestString, ok := data.Get("digest").(string)
-	if !ok {
+	digestString, isStr := data.Get("digest").(string)
+	if !isStr {
 		return errors.New("Error getting digest")
 	}
 
@@ -198,18 +270,18 @@ func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
 
 // resourceDNSSECDelete deletes a DNSSEC from the Name.com API.
 func resourceDNSSECDelete(data *schema.ResourceData, meta interface{}) error {
-	client, ok := meta.(*namecom.NameCom)
-	if !ok {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
 		return errors.New("Error getting client")
 	}
 
-	domainNameString, ok := data.Get("domain_name").(string)
-	if !ok {
+	domainNameString, isStr := data.Get("domain_name").(string)
+	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
 
-	digestString, ok := data.Get("digest").(string)
-	if !ok {
+	digestString, isStr := data.Get("digest").(string)
+	if !isStr {
 		return errors.New("Error getting digest")
 	}
 

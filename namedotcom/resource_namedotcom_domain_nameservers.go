@@ -32,13 +32,13 @@ func resourceDomainNameServers() *schema.Resource {
 }
 
 func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) error {
-	client, ok := m.(*namecom.NameCom)
-	if !ok {
+	client, isNamecom := m.(*namecom.NameCom)
+	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
 	}
 
-	domainName, ok := data.Get("domain_name").(string)
-	if !ok {
+	domainName, isStr := data.Get("domain_name").(string)
+	if !isStr {
 		return errors.New("Error converting domain_name to string")
 	}
 
@@ -47,14 +47,14 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) e
 		DomainName: domainName,
 	}
 
-	nameservers, ok := data.Get("nameservers").([]interface{})
-	if !ok {
+	nameservers, isSlice := data.Get("nameservers").([]interface{})
+	if !isSlice {
 		return errors.New("Error converting nameservers to []interface{}")
 	}
 
 	for _, nameserver := range nameservers {
-		nameserverString, ok := nameserver.(string)
-		if !ok {
+		nameserverString, isStr := nameserver.(string)
+		if !isStr {
 			return errors.New("Error converting nameserver to string")
 		}
 
@@ -80,13 +80,13 @@ func resourceDomainNameServersUpdate(_ *schema.ResourceData, _ interface{}) erro
 }
 
 func resourceDomainNameServersDelete(data *schema.ResourceData, m interface{}) error {
-	client, ok := m.(*namecom.NameCom)
-	if !ok {
+	client, isNamecom := m.(*namecom.NameCom)
+	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
 	}
 
-	domainName, ok := data.Get("domain_name").(string)
-	if !ok {
+	domainName, isStr := data.Get("domain_name").(string)
+	if !isStr {
 		return errors.New("Error converting domain_name to string")
 	}
 

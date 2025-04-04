@@ -52,14 +52,40 @@ func resourceRecord() *schema.Resource {
 
 // resourceRecordCreate creates a new record in the Name.com API.
 func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
-	resp, err := meta.(*namecom.NameCom).CreateRecord(
-		&namecom.Record{
-			DomainName: data.Get("domain_name").(string),
-			Host:       data.Get("host").(string),
-			Type:       data.Get("record_type").(string),
-			Answer:     data.Get("answer").(string),
-		},
-	)
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
+		return errors.New("Error converting meta to Name.com client")
+	}
+
+	domainName, isStr := data.Get("domain_name").(string)
+	if !isStr {
+		return errors.New("Error getting domain_name as string")
+	}
+
+	host, isStr := data.Get("host").(string)
+	if !isStr {
+		return errors.New("Error getting host as string")
+	}
+
+	recordType, isStr := data.Get("record_type").(string)
+	if !isStr {
+		return errors.New("Error getting record_type as string")
+	}
+
+	answer, isStr := data.Get("answer").(string)
+	if !isStr {
+		return errors.New("Error getting answer as string")
+	}
+
+	record := &namecom.Record{
+		DomainName: domainName,
+		Host:       host,
+		Type:       recordType,
+		Answer:     answer,
+	}
+
+	// Create the record
+	resp, err := client.CreateRecord(record)
 	if err != nil {
 		return errors.Wrap(err, "Error CreateRecord")
 	}
@@ -89,6 +115,7 @@ func resourceRecordImporter(data *schema.ResourceData, _ interface{}) ([]*schema
 
 func resourceRecordImporterParseID(id string) (domain, recordID string, err error) {
 	// Split the ID into two parts, the domain and the record ID.
+	//nolint:mnd // 2 is the expected number of parts
 	parts := strings.SplitN(id, ":", 2)
 
 	// Check that the ID is in the expected format.
@@ -101,8 +128,8 @@ func resourceRecordImporterParseID(id string) (domain, recordID string, err erro
 
 // resourceRecordRead reads a record from the Name.com API.
 func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
-	client, ok := meta.(*namecom.NameCom)
-	if !ok {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
 	}
 
@@ -111,8 +138,8 @@ func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
 		return errors.Wrap(err, "error converting Record ID")
 	}
 
-	domainString, ok := data.Get("domain_name").(string)
-	if !ok {
+	domainString, isStr := data.Get("domain_name").(string)
+	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
 
@@ -151,8 +178,8 @@ func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
 
 // resourceRecordUpdate updates a record in the Name.com API.
 func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
-	client, ok := meta.(*namecom.NameCom)
-	if !ok {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
 	}
 
@@ -161,23 +188,23 @@ func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
 		return errors.Wrap(err, "error converting Record ID")
 	}
 
-	domainNameString, ok := data.Get("domain_name").(string)
-	if !ok {
+	domainNameString, isStr := data.Get("domain_name").(string)
+	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
 
-	hostString, ok := data.Get("host").(string)
-	if !ok {
+	hostString, isStr := data.Get("host").(string)
+	if !isStr {
 		return errors.New("Error getting host")
 	}
 
-	recordTypeString, ok := data.Get("record_type").(string)
-	if !ok {
+	recordTypeString, isStr := data.Get("record_type").(string)
+	if !isStr {
 		return errors.New("Error getting record_type")
 	}
 
-	answerString, ok := data.Get("answer").(string)
-	if !ok {
+	answerString, isStr := data.Get("answer").(string)
+	if !isStr {
 		return errors.New("Error getting answer")
 	}
 
@@ -199,8 +226,8 @@ func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
 
 // resourceRecordDelete deletes a record from the Name.com API.
 func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
-	client, ok := meta.(*namecom.NameCom)
-	if !ok {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
 	}
 
@@ -209,8 +236,8 @@ func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
 		return errors.Wrap(err, "error converting Record ID")
 	}
 
-	domainNameString, ok := data.Get("domain_name").(string)
-	if !ok {
+	domainNameString, isStr := data.Get("domain_name").(string)
+	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
 

@@ -7,6 +7,7 @@ import (
 	"github.com/namedotcom/go/v4/namecom"
 )
 
+//nolint:lll // Line length is acceptable here
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
@@ -42,13 +43,13 @@ func Provider() *schema.Provider {
 
 func providerConfigure(data *schema.ResourceData) (interface{}, error) {
 	// Check for required fields
-	token, err := data.Get("token").(string)
-	if !err {
+	token, ok := data.Get("token").(string)
+	if !ok {
 		return nil, errors.New("token is required")
 	}
 
-	username, err := data.Get("username").(string)
-	if !err {
+	username, ok := data.Get("username").(string)
+	if !ok {
 		return nil, errors.New("username is required")
 	}
 
