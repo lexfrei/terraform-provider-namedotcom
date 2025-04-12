@@ -51,5 +51,5 @@ provider "namedotcom" {
 
 ### Optional
 
-- `rate_limit_per_second` (Integer) Maximum number of API requests per second. Defaults to 20.
-- `rate_limit_per_hour` (Integer) Maximum number of API requests per hour. Defaults to 3000.
+- `rate_limit_per_hour` (Number) Maximum number of API requests per hour. Defaults to 3000.
+- `rate_limit_per_second` (Number) Maximum number of API requests per second. Defaults to 20.
