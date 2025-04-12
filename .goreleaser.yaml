@@ -1,16 +1,14 @@
-# This is a GoReleaser configuration for a Terraform provider.
-# Visit https://goreleaser.com for documentation on how to customize this file.
-
+# Visit https://goreleaser.com for documentation on how to customize this
+# behavior.
 version: 2
-
 builds:
   - env:
       - CGO_ENABLED=0
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     flags:
       - -trimpath
     ldflags:
-      - '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}'
+      - "-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}"
     goos:
       - freebsd
       - windows
@@ -18,32 +16,24 @@ builds:
       - darwin
     goarch:
       - amd64
-      - '386'
+      - "386"
       - arm
       - arm64
     ignore:
       - goos: darwin
-        goarch: '386'
-    binary: '{{ .ProjectName }}_v{{ .Version }}'
-
+        goarch: "386"
+    binary: "{{ .ProjectName }}_v{{ .Version }}"
 archives:
   - format: zip
-    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
-    files:
-      - LICENSE*
-      - README*
-      - CHANGELOG*
-
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 checksum:
-  name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
-  algorithm: sha256
   extra_files:
-    - glob: 'terraform-registry-manifest.json'
-      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
-
+    - glob: "terraform-registry-manifest.json"
+      name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
 signs:
-  - cmd: gpg
-    artifacts: checksum
+  - artifacts: checksum
     args:
       - "--batch"
       - "--local-user"
@@ -52,26 +42,16 @@ signs:
       - "${signature}"
       - "--detach-sign"
       - "${artifact}"
-
 release:
   extra_files:
-    - glob: 'terraform-registry-manifest.json'
-      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
+    - glob: "terraform-registry-manifest.json"
+      name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
 
 changelog:
   sort: asc
   use: github
   filters:
     exclude:
-      - '^Merge pull request'
-      - '^Merge remote-tracking branch'
-      - '^Merge branch'
-
-# Publisher for Terraform registry
-publishers:
-  - name: terraform-registry
-    ids:
-      - default
-    dir: '{{ dir .ArtifactPath }}'
-    cmd: |
-      gpg --batch --detach-sign --local-user F57F85FC7975F22BBC3F25049C173EB1B531AA1F --output {{ .ArtifactName }}_SHA256SUMS.sig {{ .ArtifactName }}_SHA256SUMS
+      - "^Merge pull request"
+      - "^Merge remote-tracking branch"
+      - "^Merge branch"
