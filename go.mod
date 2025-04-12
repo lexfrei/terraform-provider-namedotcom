@@ -8,6 +8,7 @@ require (
 	github.com/cockroachdb/errors v1.11.3
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.36.1
 	github.com/namedotcom/go/v4 v4.0.2
+	golang.org/x/time v0.5.0
 )
 
 require (

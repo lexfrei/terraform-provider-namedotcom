@@ -1,6 +1,7 @@
 package namedotcom
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
@@ -55,6 +56,11 @@ func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
+	}
+
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
 	}
 
 	domainName, isStr := data.Get("domain_name").(string)
@@ -133,6 +139,11 @@ func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
 		return errors.New("Error converting meta to Name.com client")
 	}
 
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
+	}
+
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
 		return errors.Wrap(err, "error converting Record ID")
@@ -183,6 +194,11 @@ func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
 		return errors.New("Error converting meta to Name.com client")
 	}
 
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
+	}
+
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
 	if err != nil {
 		return errors.Wrap(err, "error converting Record ID")
@@ -229,6 +245,11 @@ func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
+	}
+
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
 	}
 
 	recordID, err := strconv.ParseInt(data.Id(), 10, 32)

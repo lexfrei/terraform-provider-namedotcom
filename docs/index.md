@@ -34,6 +34,10 @@ terraform {
 provider "namedotcom" {
   username = var.namedotcom_username
   token    = var.namedotcom_token
+  
+  # Optional: Configure rate limiting
+  # rate_limit_per_second = 20  # default
+  # rate_limit_per_hour   = 3000 # default
 }
 ```
 
@@ -44,3 +48,8 @@ provider "namedotcom" {
 
 - `username` (String) Name.com API Username; can alternatively be specified via `NAMEDOTCOM_USERNAME` environment variable.
 - `token` (String) Name.com API Token Value; can alternatively be specified via `NAMEDOTCOM_TOKEN` environment variable.
+
+### Optional
+
+- `rate_limit_per_second` (Integer) Maximum number of API requests per second. Defaults to 20.
+- `rate_limit_per_hour` (Integer) Maximum number of API requests per hour. Defaults to 3000.

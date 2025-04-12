@@ -1,6 +1,8 @@
 package namedotcom
 
 import (
+	"context"
+
 	"github.com/cockroachdb/errors"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -35,6 +37,11 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) e
 	client, isNamecom := m.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
+	}
+
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
 	}
 
 	domainName, isStr := data.Get("domain_name").(string)
@@ -83,6 +90,11 @@ func resourceDomainNameServersDelete(data *schema.ResourceData, m interface{}) e
 	client, isNamecom := m.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
+	}
+
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
 	}
 
 	domainName, isStr := data.Get("domain_name").(string)

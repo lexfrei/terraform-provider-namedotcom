@@ -23,6 +23,18 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("NAMEDOTCOM_TOKEN", nil),
 				Description: "Name.com API Token Value; can alternatively be specified via `NAMEDOTCOM_TOKEN` environment variable.",
 			},
+			"rate_limit_per_second": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     20,
+				Description: "Maximum number of API requests per second. Defaults to 20.",
+			},
+			"rate_limit_per_hour": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     3000,
+				Description: "Maximum number of API requests per hour. Defaults to 3000.",
+			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"namedotcom_record": resourceRecord(),
@@ -56,6 +68,20 @@ func providerConfigure(data *schema.ResourceData) (interface{}, error) {
 	if token == "" || username == "" {
 		return nil, errors.New("Token and Username are required")
 	}
+
+	// Get rate limits from configuration or use defaults
+	perSecondLimit := 20
+	if v, ok := data.GetOk("rate_limit_per_second"); ok {
+		perSecondLimit = v.(int)
+	}
+	
+	perHourLimit := 3000
+	if v, ok := data.GetOk("rate_limit_per_hour"); ok {
+		perHourLimit = v.(int)
+	}
+
+	// Initialize rate limiters with configured values
+	InitRateLimiters(perSecondLimit, perHourLimit)
 
 	// Create a new Name.com client
 	nc := namecom.New(username, token)

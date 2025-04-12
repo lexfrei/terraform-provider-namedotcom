@@ -1,6 +1,7 @@
 package namedotcom
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -132,6 +133,11 @@ func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
 		return errors.New("Error converting meta to Name.com client")
 	}
 
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
+	}
+
 	// Build the DNSSEC struct from resource data
 	dnssec, err := getDNSSECFromResourceData(data)
 	if err != nil {
@@ -154,6 +160,11 @@ func resourceDNSSECImporter(data *schema.ResourceData, meta interface{}) ([]*sch
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return nil, errors.New("Error getting client")
+	}
+
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return nil, errors.Wrap(err, "rate limiting error")
 	}
 
 	importDomainName, importDigest, err := resourceDNSSECImporterParseID(data.Id())
@@ -220,6 +231,11 @@ func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
 		return errors.New("Error getting client")
 	}
 
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
+	}
+
 	domainNameString, isStr := data.Get("domain_name").(string)
 	if !isStr {
 		return errors.New("Error getting domain_name")
@@ -273,6 +289,11 @@ func resourceDNSSECDelete(data *schema.ResourceData, meta interface{}) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error getting client")
+	}
+
+	// Respect rate limits before making the API call
+	if err := RespectRateLimits(context.Background()); err != nil {
+		return errors.Wrap(err, "rate limiting error")
 	}
 
 	domainNameString, isStr := data.Get("domain_name").(string)
