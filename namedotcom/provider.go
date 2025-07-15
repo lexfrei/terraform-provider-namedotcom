@@ -1,6 +1,8 @@
 package namedotcom
 
 import (
+	"time"
+
 	"github.com/cockroachdb/errors"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -34,6 +36,12 @@ func Provider() *schema.Provider {
 				Optional:    true,
 				Default:     3000,
 				Description: "Maximum number of API requests per hour. Defaults to 3000.",
+			},
+			"timeout": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     120,
+				Description: "Timeout in seconds for API requests. Defaults to 120 seconds.",
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
@@ -74,7 +82,7 @@ func providerConfigure(data *schema.ResourceData) (interface{}, error) {
 	if v, ok := data.GetOk("rate_limit_per_second"); ok {
 		perSecondLimit = v.(int)
 	}
-	
+
 	perHourLimit := 3000
 	if v, ok := data.GetOk("rate_limit_per_hour"); ok {
 		perHourLimit = v.(int)
@@ -85,6 +93,9 @@ func providerConfigure(data *schema.ResourceData) (interface{}, error) {
 
 	// Create a new Name.com client
 	nc := namecom.New(username, token)
+
+	// Set the rate limiters on the client
+	nc.Client.Timeout = time.Duration(data.Get("timeout").(int)) * time.Second
 
 	return nc, nil
 }
