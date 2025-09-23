@@ -1,3 +1,4 @@
+//nolint:paralleltest // Can't run provider tests in parallel due to global rate limiter state
 package namedotcom_test
 
 import (
@@ -95,7 +96,6 @@ func TestProviderResources(t *testing.T) {
 }
 
 func TestProviderConfigure_Success(t *testing.T) {
-	t.Parallel()
 
 	// Create test data
 	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
@@ -115,7 +115,6 @@ func TestProviderConfigure_Success(t *testing.T) {
 }
 
 func TestProviderConfigure_MissingToken(t *testing.T) {
-	t.Parallel()
 
 	// Test with missing token
 	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
@@ -129,7 +128,6 @@ func TestProviderConfigure_MissingToken(t *testing.T) {
 }
 
 func TestProviderConfigure_MissingUsername(t *testing.T) {
-	t.Parallel()
 
 	// Test with missing username
 	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
@@ -143,7 +141,6 @@ func TestProviderConfigure_MissingUsername(t *testing.T) {
 }
 
 func TestProviderConfigure_EmptyCredentials(t *testing.T) {
-	t.Parallel()
 
 	// Test with empty credentials
 	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
@@ -158,7 +155,6 @@ func TestProviderConfigure_EmptyCredentials(t *testing.T) {
 }
 
 func TestProviderConfigure_CustomRateLimits(t *testing.T) {
-	t.Parallel()
 
 	// Test with custom rate limits
 	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
@@ -180,7 +176,6 @@ func TestProviderConfigure_CustomRateLimits(t *testing.T) {
 }
 
 func TestProviderConfigure_DefaultValues(t *testing.T) {
-	t.Parallel()
 
 	// Test that default values are used when not specified
 	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{

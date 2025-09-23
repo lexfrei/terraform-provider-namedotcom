@@ -69,7 +69,7 @@ func Provider() *schema.Provider {
 }
 
 // ProviderConfigure configures the provider with the given context and resource data.
-func ProviderConfigure(ctx context.Context, data *schema.ResourceData) (interface{}, diag.Diagnostics) {
+func ProviderConfigure(_ context.Context, data *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	// Check for required fields
@@ -80,6 +80,7 @@ func ProviderConfigure(ctx context.Context, data *schema.ResourceData) (interfac
 			Summary:  "Token is required",
 			Detail:   "Token must be provided as a non-empty string value",
 		})
+
 		return nil, diags
 	}
 
@@ -90,6 +91,7 @@ func ProviderConfigure(ctx context.Context, data *schema.ResourceData) (interfac
 			Summary:  "Username is required",
 			Detail:   "Username must be provided as a non-empty string value",
 		})
+
 		return nil, diags
 	}
 

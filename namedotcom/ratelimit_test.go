@@ -1,3 +1,4 @@
+//nolint:paralleltest // Can't run rate limiter tests in parallel due to global state
 package namedotcom_test
 
 import (
@@ -10,8 +11,6 @@ import (
 )
 
 func TestInitRateLimiters(t *testing.T) {
-	t.Parallel()
-
 	// Reset state before test
 	resetRateLimiters()
 
@@ -27,8 +26,6 @@ func TestInitRateLimiters(t *testing.T) {
 }
 
 func TestInitRateLimiters_ThreadSafety(t *testing.T) {
-	t.Parallel()
-
 	// Reset state before test
 	resetRateLimiters()
 
@@ -53,7 +50,6 @@ func TestInitRateLimiters_ThreadSafety(t *testing.T) {
 }
 
 func TestRespectRateLimits_WithInitializedLimiters(t *testing.T) {
-	t.Parallel()
 
 	// Initialize rate limiters first
 	namedotcom.InitRateLimiters(100, 10000) // High limits to avoid blocking in test
@@ -67,7 +63,6 @@ func TestRespectRateLimits_WithInitializedLimiters(t *testing.T) {
 }
 
 func TestRespectRateLimits_BasicFunctionality(t *testing.T) {
-	t.Parallel()
 
 	// Initialize with reasonable limits
 	namedotcom.InitRateLimiters(100, 10000)
@@ -81,7 +76,6 @@ func TestRespectRateLimits_BasicFunctionality(t *testing.T) {
 }
 
 func TestRespectRateLimits_ContextCancellation(t *testing.T) {
-	t.Parallel()
 
 	// Initialize with reasonable limits
 	namedotcom.InitRateLimiters(5, 100)
@@ -105,7 +99,6 @@ func TestRespectRateLimits_ContextCancellation(t *testing.T) {
 }
 
 func TestRespectRateLimits_Timeout(t *testing.T) {
-	t.Parallel()
 
 	// Initialize with reasonable limits
 	namedotcom.InitRateLimiters(10, 1000)
@@ -166,5 +159,6 @@ func getRateLimiterState() bool {
 	defer cancel()
 
 	err := namedotcom.RespectRateLimits(ctx)
+
 	return err == nil
 }

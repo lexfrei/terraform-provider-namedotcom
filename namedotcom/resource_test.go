@@ -3,6 +3,8 @@ package namedotcom_test
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+
 	"github.com/lexfrei/terraform-provider-namedotcom/namedotcom"
 )
 
@@ -16,26 +18,14 @@ func TestResourceRecord_Schema(t *testing.T) {
 		t.Fatal("namedotcom_record resource not found")
 	}
 
-	// Test that required CRUD operations are defined
-	if resource.Create == nil {
-		t.Error("Create function is nil")
-	}
-	if resource.Read == nil {
-		t.Error("Read function is nil")
-	}
-	if resource.Update == nil {
-		t.Error("Update function is nil")
-	}
-	if resource.Delete == nil {
-		t.Error("Delete function is nil")
-	}
+	testResourceCRUDOperations(t, resource, true)
+	testResourceImporter(t, resource)
+	testResourceRecordSchemaFields(t, resource)
+}
 
-	// Test that importer is defined
-	if resource.Importer == nil {
-		t.Error("Importer is nil")
-	}
+func testResourceRecordSchemaFields(t *testing.T, resource *schema.Resource) {
+	t.Helper()
 
-	// Test schema fields
 	expectedFields := []string{
 		"record_id",
 		"domain_name",
@@ -50,7 +40,6 @@ func TestResourceRecord_Schema(t *testing.T) {
 		}
 	}
 
-	// Test that all fields are optional (as defined in the resource)
 	for fieldName, fieldSchema := range resource.Schema {
 		if fieldSchema.Required {
 			t.Errorf("Field '%s' should be optional, not required", fieldName)
@@ -68,24 +57,8 @@ func TestResourceDomainNameServers_Schema(t *testing.T) {
 		t.Fatal("namedotcom_domain_nameservers resource not found")
 	}
 
-	// Test that required CRUD operations are defined
-	if resource.Create == nil {
-		t.Error("Create function is nil")
-	}
-	if resource.Read == nil {
-		t.Error("Read function is nil")
-	}
-	if resource.Update == nil {
-		t.Error("Update function is nil")
-	}
-	if resource.Delete == nil {
-		t.Error("Delete function is nil")
-	}
-
-	// Check that schema exists
-	if resource.Schema == nil {
-		t.Fatal("Resource schema is nil")
-	}
+	testResourceCRUDOperations(t, resource, true)
+	testResourceSchemaExists(t, resource)
 }
 
 func TestResourceDNSSEC_Schema(t *testing.T) {
@@ -98,26 +71,9 @@ func TestResourceDNSSEC_Schema(t *testing.T) {
 		t.Fatal("namedotcom_dnssec resource not found")
 	}
 
-	// Test that required CRUD operations are defined
-	if resource.Create == nil {
-		t.Error("Create function is nil")
-	}
-	if resource.Read == nil {
-		t.Error("Read function is nil")
-	}
-	if resource.Delete == nil {
-		t.Error("Delete function is nil")
-	}
-
-	// Test that importer is defined
-	if resource.Importer == nil {
-		t.Error("Importer is nil")
-	}
-
-	// Check that schema exists
-	if resource.Schema == nil {
-		t.Fatal("Resource schema is nil")
-	}
+	testResourceCRUDOperations(t, resource, false)
+	testResourceImporter(t, resource)
+	testResourceSchemaExists(t, resource)
 }
 
 func TestResourceRecord_SchemaConsistency(t *testing.T) {
@@ -179,5 +135,41 @@ func TestProvider_SchemaConsistency(t *testing.T) {
 		if len(resource.Schema) == 0 {
 			t.Errorf("Resource '%s' has empty schema", resourceName)
 		}
+	}
+}
+
+// Helper functions for testing.
+
+//nolint:staticcheck // These are deprecated but still valid for testing
+func testResourceCRUDOperations(t *testing.T, resource *schema.Resource, hasUpdate bool) {
+	t.Helper()
+
+	if resource.Create == nil {
+		t.Error("Create function is nil")
+	}
+	if resource.Read == nil {
+		t.Error("Read function is nil")
+	}
+	if hasUpdate && resource.Update == nil {
+		t.Error("Update function is nil")
+	}
+	if resource.Delete == nil {
+		t.Error("Delete function is nil")
+	}
+}
+
+func testResourceImporter(t *testing.T, resource *schema.Resource) {
+	t.Helper()
+
+	if resource.Importer == nil {
+		t.Error("Importer is nil")
+	}
+}
+
+func testResourceSchemaExists(t *testing.T, resource *schema.Resource) {
+	t.Helper()
+
+	if resource.Schema == nil {
+		t.Fatal("Resource schema is nil")
 	}
 }
