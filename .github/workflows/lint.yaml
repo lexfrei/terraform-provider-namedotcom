@@ -1,8 +1,30 @@
-name: Lint
+name: CI
 
 on: push
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5.0.0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
   golangci-lint:
     runs-on: ubuntu-latest
     steps:

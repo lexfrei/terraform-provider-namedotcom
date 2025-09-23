@@ -1,10 +1,10 @@
 package namedotcom
 
 import (
+	"context"
 	"time"
 
-	"github.com/cockroachdb/errors"
-
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
 )
@@ -64,24 +64,33 @@ func Provider() *schema.Provider {
 			// "namedotcom_url_forwarding":    resourceUrlForwarding(),
 			// "namedotcom_vanity_nameserver": resourceVanityNameserver(),
 		},
-		ConfigureFunc: providerConfigure,
+		ConfigureContextFunc: ProviderConfigure,
 	}
 }
 
-func providerConfigure(data *schema.ResourceData) (interface{}, error) {
+// ProviderConfigure configures the provider with the given context and resource data.
+func ProviderConfigure(ctx context.Context, data *schema.ResourceData) (interface{}, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	// Check for required fields
 	token, ok := data.Get("token").(string)
-	if !ok {
-		return nil, errors.New("token is required")
+	if !ok || token == "" {
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Token is required",
+			Detail:   "Token must be provided as a non-empty string value",
+		})
+		return nil, diags
 	}
 
 	username, ok := data.Get("username").(string)
-	if !ok {
-		return nil, errors.New("username is required")
-	}
-
-	if token == "" || username == "" {
-		return nil, errors.New("Token and Username are required")
+	if !ok || username == "" {
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Username is required",
+			Detail:   "Username must be provided as a non-empty string value",
+		})
+		return nil, diags
 	}
 
 	// Get rate limits from configuration or use defaults
@@ -113,5 +122,5 @@ func providerConfigure(data *schema.ResourceData) (interface{}, error) {
 		namecomClient.Client.Timeout = time.Duration(defaultTimeoutSeconds) * time.Second
 	}
 
-	return namecomClient, nil
+	return namecomClient, diags
 }
