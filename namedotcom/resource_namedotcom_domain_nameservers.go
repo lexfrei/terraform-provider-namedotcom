@@ -40,7 +40,8 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) e
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
@@ -68,7 +69,7 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) e
 		request.Nameservers = append(request.Nameservers, nameserverString)
 	}
 
-	_, err := client.SetNameservers(&request)
+	_, err = client.SetNameservers(&request)
 	if err != nil {
 		return errors.Wrap(err, "Error SetNameservers")
 	}
@@ -93,7 +94,8 @@ func resourceDomainNameServersDelete(data *schema.ResourceData, m interface{}) e
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
@@ -107,7 +109,7 @@ func resourceDomainNameServersDelete(data *schema.ResourceData, m interface{}) e
 	}
 
 	// Make api request to setNameServers
-	_, err := client.SetNameservers(&request)
+	_, err = client.SetNameservers(&request)
 	if err != nil {
 		return errors.Wrap(err, "Error SetNameservers")
 	}

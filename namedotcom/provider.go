@@ -9,6 +9,13 @@ import (
 	"github.com/namedotcom/go/v4/namecom"
 )
 
+const (
+	// Default rate limiting values.
+	defaultRateLimitPerSecond = 20
+	defaultRateLimitPerHour   = 3000
+	defaultTimeoutSeconds     = 120
+)
+
 //nolint:lll // Line length is acceptable here
 func Provider() *schema.Provider {
 	return &schema.Provider{
@@ -28,19 +35,19 @@ func Provider() *schema.Provider {
 			"rate_limit_per_second": {
 				Type:        schema.TypeInt,
 				Optional:    true,
-				Default:     20,
+				Default:     defaultRateLimitPerSecond,
 				Description: "Maximum number of API requests per second. Defaults to 20.",
 			},
 			"rate_limit_per_hour": {
 				Type:        schema.TypeInt,
 				Optional:    true,
-				Default:     3000,
+				Default:     defaultRateLimitPerHour,
 				Description: "Maximum number of API requests per hour. Defaults to 3000.",
 			},
 			"timeout": {
 				Type:        schema.TypeInt,
 				Optional:    true,
-				Default:     120,
+				Default:     defaultTimeoutSeconds,
 				Description: "Timeout in seconds for API requests. Defaults to 120 seconds.",
 			},
 		},
@@ -78,24 +85,33 @@ func providerConfigure(data *schema.ResourceData) (interface{}, error) {
 	}
 
 	// Get rate limits from configuration or use defaults
-	perSecondLimit := 20
+	perSecondLimit := defaultRateLimitPerSecond
 	if v, ok := data.GetOk("rate_limit_per_second"); ok {
-		perSecondLimit = v.(int)
+		if val, validType := v.(int); validType {
+			perSecondLimit = val
+		}
 	}
 
-	perHourLimit := 3000
+	perHourLimit := defaultRateLimitPerHour
 	if v, ok := data.GetOk("rate_limit_per_hour"); ok {
-		perHourLimit = v.(int)
+		if val, validType := v.(int); validType {
+			perHourLimit = val
+		}
 	}
 
 	// Initialize rate limiters with configured values
 	InitRateLimiters(perSecondLimit, perHourLimit)
 
 	// Create a new Name.com client
-	nc := namecom.New(username, token)
+	namecomClient := namecom.New(username, token)
 
-	// Set the rate limiters on the client
-	nc.Client.Timeout = time.Duration(data.Get("timeout").(int)) * time.Second
+	// Set timeout on the client
+	timeoutValue := data.Get("timeout")
+	if timeoutInt, ok := timeoutValue.(int); ok {
+		namecomClient.Client.Timeout = time.Duration(timeoutInt) * time.Second
+	} else {
+		namecomClient.Client.Timeout = time.Duration(defaultTimeoutSeconds) * time.Second
+	}
 
-	return nc, nil
+	return namecomClient, nil
 }
