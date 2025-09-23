@@ -42,15 +42,18 @@ func getDNSSECFromResourceData(data *schema.ResourceData) (*namecom.DNSSEC, erro
 	}
 
 	// Validate int32 ranges
-	if err := validateIntForInt32(keyTagValue, "key_tag"); err != nil {
+	err := validateIntForInt32(keyTagValue, "key_tag")
+	if err != nil {
 		return nil, err
 	}
 
-	if err := validateIntForInt32(algorithmValue, "algorithm"); err != nil {
+	err = validateIntForInt32(algorithmValue, "algorithm")
+	if err != nil {
 		return nil, err
 	}
 
-	if err := validateIntForInt32(digestTypeValue, "digest_type"); err != nil {
+	err = validateIntForInt32(digestTypeValue, "digest_type")
+	if err != nil {
 		return nil, err
 	}
 
@@ -134,7 +137,8 @@ func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
@@ -163,7 +167,8 @@ func resourceDNSSECImporter(data *schema.ResourceData, meta interface{}) ([]*sch
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return nil, errors.Wrap(err, "rate limiting error")
 	}
 
@@ -226,59 +231,85 @@ func resourceDNSSECImporterParseID(id string) (domainName, digest string, err er
 
 // resourceDNSSECRead reads a DNSSEC from the Name.com API.
 func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return errors.New("Error getting client")
+	client, err := validateClient(meta)
+	if err != nil {
+		return err
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err = RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
+	domainName, digest, err := extractDNSSECParams(data)
+	if err != nil {
+		return err
+	}
+
+	dnssecData, err := fetchDNSSECData(client, domainName, digest)
+	if err != nil {
+		return err
+	}
+
+	return setDNSSECAttributes(data, dnssecData)
+}
+
+// validateClient validates the client interface.
+func validateClient(meta interface{}) (*namecom.NameCom, error) {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
+		return nil, errors.New("Error getting client")
+	}
+
+	return client, nil
+}
+
+// extractDNSSECParams extracts domain name and digest from resource data.
+func extractDNSSECParams(data *schema.ResourceData) (domainName, digest string, err error) {
 	domainNameString, isStr := data.Get("domain_name").(string)
 	if !isStr {
-		return errors.New("Error getting domain_name")
+		return "", "", errors.New("Error getting domain_name")
 	}
 
 	digestString, isStr := data.Get("digest").(string)
 	if !isStr {
-		return errors.New("Error getting digest")
+		return "", "", errors.New("Error getting digest")
 	}
 
+	return domainNameString, digestString, nil
+}
+
+// fetchDNSSECData retrieves DNSSEC data from the API.
+func fetchDNSSECData(client *namecom.NameCom, domainName, digest string) (*namecom.DNSSEC, error) {
 	request := namecom.GetDNSSECRequest{
-		DomainName: domainNameString,
-		Digest:     digestString,
+		DomainName: domainName,
+		Digest:     digest,
 	}
 
-	DNSSEC, err := client.GetDNSSEC(&request)
+	dnssec, err := client.GetDNSSEC(&request)
 	if err != nil {
-		return errors.Wrap(err, "Error GetDNSSECRequest")
+		return nil, errors.Wrap(err, "Error GetDNSSECRequest")
 	}
 
-	err = data.Set("domain_name", DNSSEC.DomainName)
-	if err != nil {
-		return errors.Wrap(err, "Error setting domain_name")
+	return dnssec, nil
+}
+
+// setDNSSECAttributes sets all DNSSEC attributes in the resource data.
+func setDNSSECAttributes(data *schema.ResourceData, dnssec *namecom.DNSSEC) error {
+	attributes := map[string]interface{}{
+		"domain_name": dnssec.DomainName,
+		"key_tag":     int(dnssec.KeyTag),
+		"algorithm":   int(dnssec.Algorithm),
+		"digest_type": int(dnssec.DigestType),
+		"digest":      dnssec.Digest,
 	}
 
-	err = data.Set("key_tag", int(DNSSEC.KeyTag))
-	if err != nil {
-		return errors.Wrap(err, "Error setting key_tag")
-	}
-
-	err = data.Set("algorithm", int(DNSSEC.Algorithm))
-	if err != nil {
-		return errors.Wrap(err, "Error setting algorithm")
-	}
-
-	err = data.Set("digest_type", int(DNSSEC.DigestType))
-	if err != nil {
-		return errors.Wrap(err, "Error setting digest_type")
-	}
-
-	err = data.Set("digest", DNSSEC.Digest)
-	if err != nil {
-		return errors.Wrap(err, "Error setting digest")
+	for key, value := range attributes {
+		err := data.Set(key, value)
+		if err != nil {
+			return errors.Wrapf(err, "Error setting %s", key)
+		}
 	}
 
 	return nil
@@ -292,7 +323,8 @@ func resourceDNSSECDelete(data *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
@@ -311,7 +343,7 @@ func resourceDNSSECDelete(data *schema.ResourceData, meta interface{}) error {
 		Digest:     digestString,
 	}
 
-	_, err := client.DeleteDNSSEC(&deleteRequest)
+	_, err = client.DeleteDNSSEC(&deleteRequest)
 	if err != nil {
 		return errors.Wrap(err, "Error DeleteDNSSEC")
 	}

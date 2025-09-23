@@ -59,7 +59,8 @@ func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
@@ -140,7 +141,8 @@ func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
@@ -195,7 +197,8 @@ func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
@@ -248,7 +251,8 @@ func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Respect rate limits before making the API call
-	if err := RespectRateLimits(context.Background()); err != nil {
+	err := RespectRateLimits(context.Background())
+	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
