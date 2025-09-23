@@ -1,6 +1,6 @@
 {
     "major": {
-        "stabilityDays": 3
+        "minimumReleaseAge": "3 days"
     },
     "schedule": [
         "before 2am"
@@ -9,10 +9,10 @@
     "dependencyDashboard": true,
     "packageRules": [
         {
-            "managers": [
+            "matchManagers": [
                 "gomod"
             ],
-            "updateTypes": [
+            "matchUpdateTypes": [
                 "major"
             ],
             "postUpdateOptions": [
@@ -24,10 +24,10 @@
             ]
         },
         {
-            "managers": [
+            "matchManagers": [
                 "gomod"
             ],
-            "updateTypes": [
+            "matchUpdateTypes": [
                 "minor",
                 "patch",
                 "pin",
