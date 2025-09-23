@@ -81,11 +81,13 @@ The provider requires Name.com API credentials:
 ## Release Process
 
 **Version Management:**
+
 - Follows semantic versioning
 - Current version: 1.2.0
 - Release notes generated automatically from commit messages
 
 **GoReleaser Configuration:**
+
 - Builds for multiple platforms: linux, darwin, windows, freebsd
 - Architectures: amd64, 386, arm, arm64
 - Artifacts are signed with GPG key: F57F85FC7975F22BBC3F25049C173EB1B531AA1F
