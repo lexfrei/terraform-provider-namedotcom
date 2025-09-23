@@ -90,8 +90,22 @@ The provider requires Name.com API credentials:
 ### Version Management
 
 - Follows semantic versioning
-- Current version referenced in documentation: 1.1.6
+- Current version: 1.2.0
 - Release notes generated automatically from commit messages
+
+### Release Process
+
+Create releases using GoReleaser with gh CLI token:
+
+```bash
+# Create and push tag
+git tag -a v1.2.1 -m "Release v1.2.1"
+git push origin v1.2.1
+
+# Run release using gh CLI token
+export GITHUB_TOKEN=$(gh auth token)
+goreleaser release --clean
+```
 
 ### CI/CD Pipeline
 
