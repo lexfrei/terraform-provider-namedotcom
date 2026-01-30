@@ -34,11 +34,9 @@ func TestInitRateLimiters_ThreadSafety(t *testing.T) {
 
 	// Start multiple goroutines to test thread safety
 	for range numGoroutines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			namedotcom.InitRateLimiters(20, 1000)
-		}()
+		})
 	}
 
 	wg.Wait()
