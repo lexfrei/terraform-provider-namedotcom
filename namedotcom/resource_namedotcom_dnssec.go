@@ -130,7 +130,7 @@ func resourceDNSSEC() *schema.Resource {
 }
 
 // resourceDNSSECCreate creates a new DNSSEC in the Name.com API.
-func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
+func resourceDNSSECCreate(data *schema.ResourceData, meta any) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
@@ -160,7 +160,7 @@ func resourceDNSSECCreate(data *schema.ResourceData, meta interface{}) error {
 }
 
 // resourceDNSSECImporter import existing DNSSEC from the Name.com API.
-func resourceDNSSECImporter(data *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+func resourceDNSSECImporter(data *schema.ResourceData, meta any) ([]*schema.ResourceData, error) {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return nil, errors.New("Error getting client")
@@ -230,7 +230,7 @@ func resourceDNSSECImporterParseID(id string) (domainName, digest string, err er
 }
 
 // resourceDNSSECRead reads a DNSSEC from the Name.com API.
-func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
+func resourceDNSSECRead(data *schema.ResourceData, meta any) error {
 	client, err := validateClient(meta)
 	if err != nil {
 		return err
@@ -256,7 +256,7 @@ func resourceDNSSECRead(data *schema.ResourceData, meta interface{}) error {
 }
 
 // validateClient validates the client interface.
-func validateClient(meta interface{}) (*namecom.NameCom, error) {
+func validateClient(meta any) (*namecom.NameCom, error) {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return nil, errors.New("Error getting client")
@@ -297,7 +297,7 @@ func fetchDNSSECData(client *namecom.NameCom, domainName, digest string) (*namec
 
 // setDNSSECAttributes sets all DNSSEC attributes in the resource data.
 func setDNSSECAttributes(data *schema.ResourceData, dnssec *namecom.DNSSEC) error {
-	attributes := map[string]interface{}{
+	attributes := map[string]any{
 		"domain_name": dnssec.DomainName,
 		"key_tag":     int(dnssec.KeyTag),
 		"algorithm":   int(dnssec.Algorithm),
@@ -316,7 +316,7 @@ func setDNSSECAttributes(data *schema.ResourceData, dnssec *namecom.DNSSEC) erro
 }
 
 // resourceDNSSECDelete deletes a DNSSEC from the Name.com API.
-func resourceDNSSECDelete(data *schema.ResourceData, meta interface{}) error {
+func resourceDNSSECDelete(data *schema.ResourceData, meta any) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error getting client")
