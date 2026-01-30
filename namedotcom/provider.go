@@ -69,7 +69,7 @@ func Provider() *schema.Provider {
 }
 
 // ProviderConfigure configures the provider with the given context and resource data.
-func ProviderConfigure(_ context.Context, data *schema.ResourceData) (interface{}, diag.Diagnostics) {
+func ProviderConfigure(_ context.Context, data *schema.ResourceData) (any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	// Check for required fields

@@ -98,7 +98,7 @@ func TestProviderResources(t *testing.T) {
 func TestProviderConfigure_Success(t *testing.T) {
 
 	// Create test data
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
+	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
 		"username": "testuser",
 		"token":    "testtoken",
 	})
@@ -117,7 +117,7 @@ func TestProviderConfigure_Success(t *testing.T) {
 func TestProviderConfigure_MissingToken(t *testing.T) {
 
 	// Test with missing token
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
+	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
 		"username": "testuser",
 	})
 
@@ -130,7 +130,7 @@ func TestProviderConfigure_MissingToken(t *testing.T) {
 func TestProviderConfigure_MissingUsername(t *testing.T) {
 
 	// Test with missing username
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
+	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
 		"token": "testtoken",
 	})
 
@@ -143,7 +143,7 @@ func TestProviderConfigure_MissingUsername(t *testing.T) {
 func TestProviderConfigure_EmptyCredentials(t *testing.T) {
 
 	// Test with empty credentials
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
+	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
 		"username": "",
 		"token":    "",
 	})
@@ -157,7 +157,7 @@ func TestProviderConfigure_EmptyCredentials(t *testing.T) {
 func TestProviderConfigure_CustomRateLimits(t *testing.T) {
 
 	// Test with custom rate limits
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
+	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
 		"username":              "testuser",
 		"token":                 "testtoken",
 		"rate_limit_per_second": 10,
@@ -178,7 +178,7 @@ func TestProviderConfigure_CustomRateLimits(t *testing.T) {
 func TestProviderConfigure_DefaultValues(t *testing.T) {
 
 	// Test that default values are used when not specified
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]interface{}{
+	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
 		"username": "testuser",
 		"token":    "testtoken",
 	})

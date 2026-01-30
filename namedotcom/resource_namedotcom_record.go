@@ -52,7 +52,7 @@ func resourceRecord() *schema.Resource {
 }
 
 // resourceRecordCreate creates a new record in the Name.com API.
-func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
+func resourceRecordCreate(data *schema.ResourceData, meta any) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
@@ -103,7 +103,7 @@ func resourceRecordCreate(data *schema.ResourceData, meta interface{}) error {
 }
 
 // resourceRecordImporter import existing record from the Name.com API.
-func resourceRecordImporter(data *schema.ResourceData, _ interface{}) ([]*schema.ResourceData, error) {
+func resourceRecordImporter(data *schema.ResourceData, _ any) ([]*schema.ResourceData, error) {
 	// data.Id() is the last argument passed to terraform import, in format domain:id
 	importDomainName, importID, err := resourceRecordImporterParseID(data.Id())
 	if err != nil {
@@ -134,7 +134,7 @@ func resourceRecordImporterParseID(id string) (domain, recordID string, err erro
 }
 
 // resourceRecordRead reads a record from the Name.com API.
-func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
+func resourceRecordRead(data *schema.ResourceData, meta any) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
@@ -190,7 +190,7 @@ func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
 }
 
 // resourceRecordUpdate updates a record in the Name.com API.
-func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
+func resourceRecordUpdate(data *schema.ResourceData, meta any) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")
@@ -244,7 +244,7 @@ func resourceRecordUpdate(data *schema.ResourceData, meta interface{}) error {
 }
 
 // resourceRecordDelete deletes a record from the Name.com API.
-func resourceRecordDelete(data *schema.ResourceData, meta interface{}) error {
+func resourceRecordDelete(data *schema.ResourceData, meta any) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting meta to Name.com client")

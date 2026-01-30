@@ -33,7 +33,7 @@ func resourceDomainNameServers() *schema.Resource {
 	}
 }
 
-func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) error {
+func resourceDomainNameServersCreate(data *schema.ResourceData, m any) error {
 	client, isNamecom := m.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
@@ -55,9 +55,9 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) e
 		DomainName: domainName,
 	}
 
-	nameservers, isSlice := data.Get("nameservers").([]interface{})
+	nameservers, isSlice := data.Get("nameservers").([]any)
 	if !isSlice {
-		return errors.New("Error converting nameservers to []interface{}")
+		return errors.New("Error converting nameservers to []any")
 	}
 
 	for _, nameserver := range nameservers {
@@ -79,15 +79,15 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, m interface{}) e
 	return nil
 }
 
-func resourceDomainNameServersRead(_ *schema.ResourceData, _ interface{}) error {
+func resourceDomainNameServersRead(_ *schema.ResourceData, _ any) error {
 	return nil
 }
 
-func resourceDomainNameServersUpdate(_ *schema.ResourceData, _ interface{}) error {
+func resourceDomainNameServersUpdate(_ *schema.ResourceData, _ any) error {
 	return nil
 }
 
-func resourceDomainNameServersDelete(data *schema.ResourceData, m interface{}) error {
+func resourceDomainNameServersDelete(data *schema.ResourceData, m any) error {
 	client, isNamecom := m.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
