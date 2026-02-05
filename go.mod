@@ -2,7 +2,7 @@ module github.com/lexfrei/terraform-provider-namedotcom
 
 go 1.25
 
-toolchain go1.25.6
+toolchain go1.25.7
 
 require (
 	github.com/cockroachdb/errors v1.12.0
