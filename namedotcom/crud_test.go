@@ -1030,6 +1030,14 @@ func TestResourceDomainNameServersUpdate_APIError(t *testing.T) {
 	}
 }
 
+func TestResourceDomainNameServersUpdate_DomainNotFound(t *testing.T) {
+	assertDomainNotFoundClearsState(
+		t,
+		"/v4/domains/example.com:setNameservers",
+		namedotcom.ResourceDomainNameServersUpdate,
+	)
+}
+
 func TestResourceDomainNameServersUpdate_InvalidMeta(t *testing.T) {
 	t.Parallel()
 

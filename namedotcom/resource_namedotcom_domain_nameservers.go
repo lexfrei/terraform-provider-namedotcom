@@ -2,7 +2,6 @@ package namedotcom
 
 import (
 	"context"
-	"net/http"
 	"strings"
 
 	"github.com/cockroachdb/errors"
@@ -144,12 +143,10 @@ func isDomainNotFound(err error) bool {
 		return false
 	}
 
-	errMsg := err.Error()
+	errMsg := strings.ToLower(err.Error())
 
 	return strings.Contains(errMsg, "404") ||
-		strings.Contains(errMsg, http.StatusText(http.StatusNotFound)) ||
-		strings.Contains(errMsg, "not found") ||
-		strings.Contains(errMsg, "Not found")
+		strings.Contains(errMsg, "not found")
 }
 
 func resourceDomainNameServersUpdate(data *schema.ResourceData, meta any) error {
@@ -160,6 +157,12 @@ func resourceDomainNameServersUpdate(data *schema.ResourceData, meta any) error 
 
 	err := setNameservers(data, client)
 	if err != nil {
+		if isDomainNotFound(err) {
+			data.SetId("")
+
+			return nil
+		}
+
 		return err
 	}
 
