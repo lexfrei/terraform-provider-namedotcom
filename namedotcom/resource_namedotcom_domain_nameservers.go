@@ -22,6 +22,7 @@ func resourceDomainNameServers() *schema.Resource {
 			"domain_name": {
 				Type:        schema.TypeString,
 				Required:    true,
+				ForceNew:    true,
 				Description: "DomainName is the punycode encoded value of the domain name.",
 			},
 			"nameservers": {
@@ -187,6 +188,13 @@ func resourceDomainNameServersDelete(data *schema.ResourceData, meta any) error 
 
 	_, err = client.SetNameservers(&request)
 	if err != nil {
+		// If domain no longer exists, resource is already gone
+		if isDomainNotFound(err) {
+			data.SetId("")
+
+			return nil
+		}
+
 		return errors.Wrap(err, "Error SetNameservers")
 	}
 

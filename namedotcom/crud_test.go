@@ -735,6 +735,45 @@ func TestResourceDomainNameServersDelete_InvalidMeta(t *testing.T) {
 	}
 }
 
+func assertDomainNotFoundClearsState(
+	t *testing.T,
+	pattern string,
+	operation func(*schema.ResourceData, any) error,
+) {
+	t.Helper()
+	initLimiters(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(pattern, func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, `{"message":"Domain not found"}`, http.StatusNotFound)
+	})
+
+	client := newMockClient(t, mux)
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{},
+	})
+	data.SetId(testDomain)
+
+	err := operation(data, client)
+	if err != nil {
+		t.Fatalf("expected nil error for not-found domain, got: %v", err)
+	}
+
+	if data.Id() != "" {
+		t.Errorf("ID should be empty after domain not found, got %q", data.Id())
+	}
+}
+
+func TestResourceDomainNameServersDelete_DomainNotFound(t *testing.T) {
+	assertDomainNotFoundClearsState(
+		t,
+		"/v4/domains/example.com:setNameservers",
+		namedotcom.ResourceDomainNameServersDelete,
+	)
+}
+
 // Nameservers Read and Update tests.
 
 func TestResourceDomainNameServersRead_Success(t *testing.T) {
@@ -810,29 +849,11 @@ func TestResourceDomainNameServersRead_InvalidMeta(t *testing.T) {
 }
 
 func TestResourceDomainNameServersRead_DomainNotFound(t *testing.T) {
-	initLimiters(t)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
-		http.Error(writer, `{"message":"Domain not found"}`, http.StatusNotFound)
-	})
-
-	client := newMockClient(t, mux)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersRead(data, client)
-	if err != nil {
-		t.Fatalf("expected nil error for not-found domain, got: %v", err)
-	}
-
-	if data.Id() != "" {
-		t.Errorf("ID should be empty after domain not found, got %q", data.Id())
-	}
+	assertDomainNotFoundClearsState(
+		t,
+		"/v4/domains/example.com",
+		namedotcom.ResourceDomainNameServersRead,
+	)
 }
 
 func TestIsDomainNotFound(t *testing.T) {
