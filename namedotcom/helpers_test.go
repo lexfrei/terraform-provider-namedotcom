@@ -75,8 +75,8 @@ func TestResourceDNSSECImporterParseID(t *testing.T) {
 	runParseIDTests(t, []parseIDTestCase{
 		{name: "valid input", input: "example.com_ABCDEF123", wantFirst: "example.com", wantSecond: "ABCDEF123"},
 		{
-			name: "multiple underscores splits at first", input: "my_domain.com_digest",
-			wantFirst: "my", wantSecond: "domain.com_digest",
+			name: "multiple underscores splits at last", input: "my_domain.com_digest",
+			wantFirst: "my_domain.com", wantSecond: "digest",
 		},
 		{name: "empty domain", input: "_ABCDEF", wantErr: true},
 		{name: "empty digest", input: "example.com_", wantErr: true},

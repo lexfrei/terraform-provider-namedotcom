@@ -218,15 +218,15 @@ func resourceDNSSECImporter(data *schema.ResourceData, meta any) ([]*schema.Reso
 }
 
 // resourceDNSSECImporterParseID parses the ID of the DNSSEC.
-func resourceDNSSECImporterParseID(id string) (domainName, digest string, err error) {
-	//nolint:mnd // 2 is the expected number of parts
-	parts := strings.SplitN(id, "_", 2)
-
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+// Format: DomainName_Digest. Splits at the last underscore to handle
+// domain names that may contain underscores.
+func resourceDNSSECImporterParseID(importID string) (domainName, digest string, err error) {
+	idx := strings.LastIndex(importID, "_")
+	if idx <= 0 || idx == len(importID)-1 {
 		return "", "", errors.New("unexpected format of ID, expected DomainName_Digest")
 	}
 
-	return parts[0], parts[1], nil
+	return importID[:idx], importID[idx+1:], nil
 }
 
 // resourceDNSSECRead reads a DNSSEC from the Name.com API.
