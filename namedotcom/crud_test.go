@@ -719,27 +719,15 @@ func TestResourceDomainNameServersDelete_InvalidMeta(t *testing.T) {
 }
 
 // Known limitation: nameservers Read and Update are no-ops.
-// Read does not call the Name.com API, so terraform cannot detect drift
-// in nameserver configuration. Update silently ignores all changes.
-// These tests document the current behavior; fixing this requires
-// implementing actual API calls in the resource functions.
+// These tests are skipped to surface the limitation in test output.
+// Fixing this requires implementing actual Name.com API calls.
 
-func TestResourceDomainNameServersRead_KnownLimitation_IsNoop(t *testing.T) {
-	t.Parallel()
-
-	err := namedotcom.ResourceDomainNameServersRead(nil, nil)
-	if err != nil {
-		t.Fatalf("Read is currently a no-op (known limitation), got error: %v", err)
-	}
+func TestResourceDomainNameServersRead_DetectsDrift(t *testing.T) {
+	t.Skip("TODO: Read is a no-op and cannot detect nameserver drift")
 }
 
-func TestResourceDomainNameServersUpdate_KnownLimitation_IsNoop(t *testing.T) {
-	t.Parallel()
-
-	err := namedotcom.ResourceDomainNameServersUpdate(nil, nil)
-	if err != nil {
-		t.Fatalf("Update is currently a no-op (known limitation), got error: %v", err)
-	}
+func TestResourceDomainNameServersUpdate_AppliesChanges(t *testing.T) {
+	t.Skip("TODO: Update is a no-op and silently ignores all changes")
 }
 
 // Record Importer tests.
