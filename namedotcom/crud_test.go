@@ -718,16 +718,158 @@ func TestResourceDomainNameServersDelete_InvalidMeta(t *testing.T) {
 	}
 }
 
-// Known limitation: nameservers Read and Update are no-ops.
-// These tests are skipped to surface the limitation in test output.
-// Fixing this requires implementing actual Name.com API calls.
+// Nameservers Read and Update tests.
 
-func TestResourceDomainNameServersRead_DetectsDrift(t *testing.T) {
-	t.Skip("TODO: Read is a no-op and cannot detect nameserver drift")
+func TestResourceDomainNameServersRead_Success(t *testing.T) {
+	initLimiters(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns1.example.com","ns2.example.com"]}`)
+	})
+
+	client := newMockClient(t, mux)
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{},
+	})
+	data.SetId(testDomain)
+
+	err := namedotcom.ResourceDomainNameServersRead(data, client)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	nameservers, ok := data.Get("nameservers").([]any)
+	if !ok {
+		t.Fatal("nameservers is not []any")
+	}
+
+	if len(nameservers) != 2 {
+		t.Fatalf("expected 2 nameservers, got %d", len(nameservers))
+	}
+
+	if nameservers[0] != "ns1.example.com" {
+		t.Errorf("nameservers[0] = %q, want %q", nameservers[0], "ns1.example.com")
+	}
+
+	if nameservers[1] != "ns2.example.com" {
+		t.Errorf("nameservers[1] = %q, want %q", nameservers[1], "ns2.example.com")
+	}
 }
 
-func TestResourceDomainNameServersUpdate_AppliesChanges(t *testing.T) {
-	t.Skip("TODO: Update is a no-op and silently ignores all changes")
+func TestResourceDomainNameServersRead_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com")
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{},
+	})
+	data.SetId(testDomain)
+
+	err := namedotcom.ResourceDomainNameServersRead(data, client)
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
+	}
+}
+
+func TestResourceDomainNameServersRead_InvalidMeta(t *testing.T) {
+	t.Parallel()
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{},
+	})
+	data.SetId(testDomain)
+
+	err := namedotcom.ResourceDomainNameServersRead(data, "not a client")
+	if err == nil {
+		t.Fatal("expected error for invalid meta, got nil")
+	}
+}
+
+func TestResourceDomainNameServersUpdate_Success(t *testing.T) {
+	initLimiters(t)
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
+
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{}`)
+	})
+
+	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns3.example.com","ns4.example.com"]}`)
+	})
+
+	client := newMockClient(t, mux)
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{"ns3.example.com", "ns4.example.com"},
+	})
+	data.SetId(testDomain)
+
+	err := namedotcom.ResourceDomainNameServersUpdate(data, client)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	nameservers, ok := data.Get("nameservers").([]any)
+	if !ok {
+		t.Fatal("nameservers is not []any")
+	}
+
+	if len(nameservers) != 2 {
+		t.Fatalf("expected 2 nameservers, got %d", len(nameservers))
+	}
+
+	if nameservers[0] != "ns3.example.com" {
+		t.Errorf("nameservers[0] = %q, want %q", nameservers[0], "ns3.example.com")
+	}
+}
+
+func TestResourceDomainNameServersUpdate_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com:setNameservers")
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{"ns1.example.com"},
+	})
+	data.SetId(testDomain)
+
+	err := namedotcom.ResourceDomainNameServersUpdate(data, client)
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
+	}
+}
+
+func TestResourceDomainNameServersUpdate_InvalidMeta(t *testing.T) {
+	t.Parallel()
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{"ns1.example.com"},
+	})
+	data.SetId(testDomain)
+
+	err := namedotcom.ResourceDomainNameServersUpdate(data, "not a client")
+	if err == nil {
+		t.Fatal("expected error for invalid meta, got nil")
+	}
 }
 
 // Record Importer tests.

@@ -79,12 +79,82 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, m any) error {
 	return nil
 }
 
-func resourceDomainNameServersRead(_ *schema.ResourceData, _ any) error {
+func resourceDomainNameServersRead(data *schema.ResourceData, meta any) error {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
+		return errors.New("Error converting interface to NameCom")
+	}
+
+	err := RespectRateLimits(context.Background())
+	if err != nil {
+		return errors.Wrap(err, "rate limiting error")
+	}
+
+	domainName, isStr := data.Get("domain_name").(string)
+	if !isStr {
+		return errors.New("Error converting domain_name to string")
+	}
+
+	domain, err := client.GetDomain(&namecom.GetDomainRequest{
+		DomainName: domainName,
+	})
+	if err != nil {
+		return errors.Wrap(err, "Error GetDomain")
+	}
+
+	nameservers := make([]any, len(domain.Nameservers))
+	for idx, ns := range domain.Nameservers {
+		nameservers[idx] = ns
+	}
+
+	err = data.Set("nameservers", nameservers)
+	if err != nil {
+		return errors.Wrap(err, "Error setting nameservers")
+	}
+
 	return nil
 }
 
-func resourceDomainNameServersUpdate(_ *schema.ResourceData, _ any) error {
-	return nil
+func resourceDomainNameServersUpdate(data *schema.ResourceData, meta any) error {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
+		return errors.New("Error converting interface to NameCom")
+	}
+
+	err := RespectRateLimits(context.Background())
+	if err != nil {
+		return errors.Wrap(err, "rate limiting error")
+	}
+
+	domainName, isStr := data.Get("domain_name").(string)
+	if !isStr {
+		return errors.New("Error converting domain_name to string")
+	}
+
+	request := namecom.SetNameserversRequest{
+		DomainName: domainName,
+	}
+
+	nameservers, isSlice := data.Get("nameservers").([]any)
+	if !isSlice {
+		return errors.New("Error converting nameservers to []any")
+	}
+
+	for _, nameserver := range nameservers {
+		nameserverString, isStr := nameserver.(string)
+		if !isStr {
+			return errors.New("Error converting nameserver to string")
+		}
+
+		request.Nameservers = append(request.Nameservers, nameserverString)
+	}
+
+	_, err = client.SetNameservers(&request)
+	if err != nil {
+		return errors.Wrap(err, "Error SetNameservers")
+	}
+
+	return resourceDomainNameServersRead(data, meta)
 }
 
 func resourceDomainNameServersDelete(data *schema.ResourceData, m any) error {
