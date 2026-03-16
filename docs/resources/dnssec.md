@@ -35,3 +35,11 @@ resource "namedotcom_dnssec" "this" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
+
+## Import
+
+DNSSEC resources can be imported using the domain name and digest separated by an underscore:
+
+```shell
+terraform import namedotcom_dnssec.this example.com_6B3ED3311DE85004BF6DD325BA82340BC89B40B86D4055780F3BE4390B81B59A
+```

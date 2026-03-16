@@ -62,3 +62,11 @@ resource "namedotcom_record" "domain-me" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
+
+## Import
+
+DNS record resources can be imported using the domain name and record ID separated by a colon:
+
+```shell
+terraform import namedotcom_record.foo example.com:12345
+```

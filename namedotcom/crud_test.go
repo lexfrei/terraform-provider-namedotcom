@@ -36,14 +36,20 @@ func mustJSON(t *testing.T, val any) []byte {
 	return data
 }
 
-func initLimiters() {
+func initLimiters(t *testing.T) {
+	t.Helper()
+
 	namedotcom.InitRateLimiters(namedotcom.DefaultPerSecondLimit, namedotcom.DefaultPerHourLimit)
+
+	t.Cleanup(func() {
+		namedotcom.InitRateLimiters(namedotcom.DefaultPerSecondLimit, namedotcom.DefaultPerHourLimit)
+	})
 }
 
 // Record CRUD tests.
 
 func TestResourceRecordCreate_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 
@@ -83,7 +89,7 @@ func TestResourceRecordCreate_Success(t *testing.T) {
 }
 
 func TestResourceRecordRead_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com/records/42", func(writer http.ResponseWriter, _ *http.Request) {
@@ -113,7 +119,7 @@ func TestResourceRecordRead_Success(t *testing.T) {
 }
 
 func TestResourceRecordUpdate_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com/records/42", func(writer http.ResponseWriter, _ *http.Request) {
@@ -140,7 +146,7 @@ func TestResourceRecordUpdate_Success(t *testing.T) {
 }
 
 func TestResourceRecordDelete_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com/records/42", func(writer http.ResponseWriter, request *http.Request) {
@@ -175,7 +181,7 @@ func TestResourceRecordDelete_Success(t *testing.T) {
 }
 
 func TestResourceRecordCreate_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com/records", func(writer http.ResponseWriter, _ *http.Request) {
@@ -226,7 +232,7 @@ func testDNSSECResponse() *namecom.DNSSEC {
 }
 
 func TestResourceDNSSECCreate_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 
@@ -275,7 +281,7 @@ func TestResourceDNSSECCreate_Success(t *testing.T) {
 }
 
 func TestResourceDNSSECRead_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com/dnssec/AABBCCDD", func(writer http.ResponseWriter, _ *http.Request) {
@@ -311,7 +317,7 @@ func TestResourceDNSSECRead_Success(t *testing.T) {
 }
 
 func TestResourceDNSSECDelete_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com/dnssec/AABBCCDD", func(writer http.ResponseWriter, request *http.Request) {
@@ -349,7 +355,7 @@ func TestResourceDNSSECDelete_Success(t *testing.T) {
 // Domain Nameservers CRUD tests.
 
 func TestResourceDomainNameServersCreate_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
@@ -381,7 +387,7 @@ func TestResourceDomainNameServersCreate_Success(t *testing.T) {
 }
 
 func TestResourceDomainNameServersDelete_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
@@ -441,7 +447,7 @@ func newErrorMock(t *testing.T, pattern string) *namecom.NameCom {
 }
 
 func TestResourceRecordRead_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com/records/42")
 
@@ -477,7 +483,7 @@ func TestResourceRecordRead_InvalidMeta(t *testing.T) {
 }
 
 func TestResourceRecordUpdate_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com/records/42")
 
@@ -513,7 +519,7 @@ func TestResourceRecordUpdate_InvalidMeta(t *testing.T) {
 }
 
 func TestResourceRecordDelete_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com/records/42")
 
@@ -551,7 +557,7 @@ func TestResourceRecordDelete_InvalidMeta(t *testing.T) {
 // DNSSEC API error tests.
 
 func TestResourceDNSSECCreate_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com/dnssec")
 
@@ -587,7 +593,7 @@ func TestResourceDNSSECCreate_InvalidMeta(t *testing.T) {
 }
 
 func TestResourceDNSSECRead_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com/dnssec/AABBCCDD")
 
@@ -625,7 +631,7 @@ func TestResourceDNSSECRead_InvalidMeta(t *testing.T) {
 }
 
 func TestResourceDNSSECDelete_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com/dnssec/AABBCCDD")
 
@@ -665,7 +671,7 @@ func TestResourceDNSSECDelete_InvalidMeta(t *testing.T) {
 // Nameservers API error tests.
 
 func TestResourceDomainNameServersCreate_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com:setNameservers")
 
@@ -681,7 +687,7 @@ func TestResourceDomainNameServersCreate_APIError(t *testing.T) {
 }
 
 func TestResourceDomainNameServersDelete_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com:setNameservers")
 
@@ -712,23 +718,27 @@ func TestResourceDomainNameServersDelete_InvalidMeta(t *testing.T) {
 	}
 }
 
-// No-op tests for nameservers Read/Update.
+// Known limitation: nameservers Read and Update are no-ops.
+// Read does not call the Name.com API, so terraform cannot detect drift
+// in nameserver configuration. Update silently ignores all changes.
+// These tests document the current behavior; fixing this requires
+// implementing actual API calls in the resource functions.
 
-func TestResourceDomainNameServersRead_IsNoop(t *testing.T) {
+func TestResourceDomainNameServersRead_KnownLimitation_IsNoop(t *testing.T) {
 	t.Parallel()
 
 	err := namedotcom.ResourceDomainNameServersRead(nil, nil)
 	if err != nil {
-		t.Fatalf("Read should be a no-op, got error: %v", err)
+		t.Fatalf("Read is currently a no-op (known limitation), got error: %v", err)
 	}
 }
 
-func TestResourceDomainNameServersUpdate_IsNoop(t *testing.T) {
+func TestResourceDomainNameServersUpdate_KnownLimitation_IsNoop(t *testing.T) {
 	t.Parallel()
 
 	err := namedotcom.ResourceDomainNameServersUpdate(nil, nil)
 	if err != nil {
-		t.Fatalf("Update should be a no-op, got error: %v", err)
+		t.Fatalf("Update is currently a no-op (known limitation), got error: %v", err)
 	}
 }
 
@@ -783,7 +793,7 @@ func TestResourceRecordImporter_InvalidFormat(t *testing.T) {
 // DNSSEC Importer tests.
 
 func TestResourceDNSSECImporter_Success(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com/dnssec/AABBCCDD", func(writer http.ResponseWriter, _ *http.Request) {
@@ -827,7 +837,7 @@ func TestResourceDNSSECImporter_Success(t *testing.T) {
 }
 
 func TestResourceDNSSECImporter_InvalidFormat(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
 		"domain_name": "",
@@ -865,7 +875,7 @@ func TestResourceDNSSECImporter_InvalidMeta(t *testing.T) {
 }
 
 func TestResourceDNSSECImporter_APIError(t *testing.T) {
-	initLimiters()
+	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com/dnssec/AABBCCDD")
 
