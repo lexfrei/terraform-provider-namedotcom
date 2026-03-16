@@ -48,3 +48,12 @@ resource "namedotcom_domain_nameservers" "example_com" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
+
+## Known Limitations
+
+- **No drift detection**: The Read operation does not call the Name.com API, so `terraform plan` will not detect external changes to nameservers.
+- **Update is a no-op**: Changes to nameservers after initial creation are silently ignored. To apply changes, destroy and recreate the resource.
+
+## Import
+
+Import is not supported for this resource.
