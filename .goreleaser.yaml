@@ -39,7 +39,7 @@ signs:
     args:
       - "--batch"
       - "--local-user"
-      - "F57F85FC7975F22BBC3F25049C173EB1B531AA1F"
+      - "62516FAA4167CBF4FA4E0775CF943E8B90C984F5!"
       - "--output"
       - "${signature}"
       - "--detach-sign"
