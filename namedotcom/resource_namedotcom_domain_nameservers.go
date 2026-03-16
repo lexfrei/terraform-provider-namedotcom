@@ -33,8 +33,8 @@ func resourceDomainNameServers() *schema.Resource {
 	}
 }
 
-func resourceDomainNameServersCreate(data *schema.ResourceData, m any) error {
-	client, isNamecom := m.(*namecom.NameCom)
+func resourceDomainNameServersCreate(data *schema.ResourceData, meta any) error {
+	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
 	}
@@ -76,7 +76,7 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, m any) error {
 
 	data.SetId(domainName)
 
-	return nil
+	return resourceDomainNameServersRead(data, meta)
 }
 
 func resourceDomainNameServersRead(data *schema.ResourceData, meta any) error {
@@ -157,8 +157,8 @@ func resourceDomainNameServersUpdate(data *schema.ResourceData, meta any) error 
 	return resourceDomainNameServersRead(data, meta)
 }
 
-func resourceDomainNameServersDelete(data *schema.ResourceData, m any) error {
-	client, isNamecom := m.(*namecom.NameCom)
+func resourceDomainNameServersDelete(data *schema.ResourceData, meta any) error {
+	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
 	}

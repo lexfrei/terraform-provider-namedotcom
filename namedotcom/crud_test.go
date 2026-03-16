@@ -369,6 +369,12 @@ func TestResourceDomainNameServersCreate_Success(t *testing.T) {
 		fmt.Fprintf(writer, `{}`)
 	})
 
+	// GET /v4/domains/example.com → Read (called after Create)
+	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns1.example.com","ns2.example.com"]}`)
+	})
+
 	client := newMockClient(t, mux)
 
 	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
@@ -383,6 +389,16 @@ func TestResourceDomainNameServersCreate_Success(t *testing.T) {
 
 	if data.Id() != testDomain {
 		t.Errorf("ID = %q, want %q", data.Id(), testDomain)
+	}
+
+	// Verify Read was called after Create and populated nameservers from API
+	nameservers, ok := data.Get("nameservers").([]any)
+	if !ok {
+		t.Fatal("nameservers is not []any")
+	}
+
+	if len(nameservers) != 2 {
+		t.Fatalf("expected 2 nameservers after Create+Read, got %d", len(nameservers))
 	}
 }
 
