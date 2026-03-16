@@ -21,6 +21,7 @@ var (
 	ResourceDomainNameServersUpdate = resourceDomainNameServersUpdate
 	ResourceDomainNameServersDelete = resourceDomainNameServersDelete
 	GetDNSSECFromResourceData       = getDNSSECFromResourceData
+	IsDomainNotFound                = isDomainNotFound
 	ResourceRecord                  = resourceRecord
 	ResourceDNSSEC                  = resourceDNSSEC
 	ResourceDomainNameServers       = resourceDomainNameServers

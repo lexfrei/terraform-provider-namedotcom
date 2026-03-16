@@ -83,7 +83,7 @@ The provider requires Name.com API credentials:
 **Version Management:**
 
 - Follows semantic versioning
-- Current version: 1.2.0
+- Current version: 2.2.2
 - Release notes generated automatically from commit messages
 
 **GoReleaser Configuration:**
