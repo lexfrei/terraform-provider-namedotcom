@@ -2,6 +2,8 @@ package namedotcom
 
 import (
 	"context"
+	"net/http"
+	"strings"
 
 	"github.com/cockroachdb/errors"
 
@@ -19,7 +21,7 @@ func resourceDomainNameServers() *schema.Resource {
 		Schema: map[string]*schema.Schema{
 			"domain_name": {
 				Type:        schema.TypeString,
-				Optional:    true,
+				Required:    true,
 				Description: "DomainName is the punycode encoded value of the domain name.",
 			},
 			"nameservers": {
@@ -33,13 +35,8 @@ func resourceDomainNameServers() *schema.Resource {
 	}
 }
 
-func resourceDomainNameServersCreate(data *schema.ResourceData, meta any) error {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return errors.New("Error converting interface to NameCom")
-	}
-
-	// Respect rate limits before making the API call
+// setNameservers calls the Name.com API to set nameservers for a domain.
+func setNameservers(data *schema.ResourceData, client *namecom.NameCom) error {
 	err := RespectRateLimits(context.Background())
 	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
@@ -50,7 +47,6 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, meta any) error 
 		return errors.New("Error converting domain_name to string")
 	}
 
-	// Make api request to setNameServers
 	request := namecom.SetNameserversRequest{
 		DomainName: domainName,
 	}
@@ -72,6 +68,25 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, meta any) error 
 	_, err = client.SetNameservers(&request)
 	if err != nil {
 		return errors.Wrap(err, "Error SetNameservers")
+	}
+
+	return nil
+}
+
+func resourceDomainNameServersCreate(data *schema.ResourceData, meta any) error {
+	client, isNamecom := meta.(*namecom.NameCom)
+	if !isNamecom {
+		return errors.New("Error converting interface to NameCom")
+	}
+
+	err := setNameservers(data, client)
+	if err != nil {
+		return err
+	}
+
+	domainName, isStr := data.Get("domain_name").(string)
+	if !isStr {
+		return errors.New("Error converting domain_name to string")
 	}
 
 	data.SetId(domainName)
@@ -99,6 +114,13 @@ func resourceDomainNameServersRead(data *schema.ResourceData, meta any) error {
 		DomainName: domainName,
 	})
 	if err != nil {
+		// If the domain no longer exists, remove it from state
+		if isDomainNotFound(err) {
+			data.SetId("")
+
+			return nil
+		}
+
 		return errors.Wrap(err, "Error GetDomain")
 	}
 
@@ -115,43 +137,29 @@ func resourceDomainNameServersRead(data *schema.ResourceData, meta any) error {
 	return nil
 }
 
+// isDomainNotFound checks if the API error indicates the domain was not found.
+func isDomainNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+
+	return strings.Contains(errMsg, "404") ||
+		strings.Contains(errMsg, http.StatusText(http.StatusNotFound)) ||
+		strings.Contains(errMsg, "not found") ||
+		strings.Contains(errMsg, "Not found")
+}
+
 func resourceDomainNameServersUpdate(data *schema.ResourceData, meta any) error {
 	client, isNamecom := meta.(*namecom.NameCom)
 	if !isNamecom {
 		return errors.New("Error converting interface to NameCom")
 	}
 
-	err := RespectRateLimits(context.Background())
+	err := setNameservers(data, client)
 	if err != nil {
-		return errors.Wrap(err, "rate limiting error")
-	}
-
-	domainName, isStr := data.Get("domain_name").(string)
-	if !isStr {
-		return errors.New("Error converting domain_name to string")
-	}
-
-	request := namecom.SetNameserversRequest{
-		DomainName: domainName,
-	}
-
-	nameservers, isSlice := data.Get("nameservers").([]any)
-	if !isSlice {
-		return errors.New("Error converting nameservers to []any")
-	}
-
-	for _, nameserver := range nameservers {
-		nameserverString, isStr := nameserver.(string)
-		if !isStr {
-			return errors.New("Error converting nameserver to string")
-		}
-
-		request.Nameservers = append(request.Nameservers, nameserverString)
-	}
-
-	_, err = client.SetNameservers(&request)
-	if err != nil {
-		return errors.Wrap(err, "Error SetNameservers")
+		return err
 	}
 
 	return resourceDomainNameServersRead(data, meta)
@@ -163,7 +171,6 @@ func resourceDomainNameServersDelete(data *schema.ResourceData, meta any) error 
 		return errors.New("Error converting interface to NameCom")
 	}
 
-	// Respect rate limits before making the API call
 	err := RespectRateLimits(context.Background())
 	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
@@ -178,13 +185,11 @@ func resourceDomainNameServersDelete(data *schema.ResourceData, meta any) error 
 		DomainName: domainName,
 	}
 
-	// Make api request to setNameServers
 	_, err = client.SetNameservers(&request)
 	if err != nil {
 		return errors.Wrap(err, "Error SetNameservers")
 	}
 
-	// Record state using resourceDomainNameServersRead function
 	data.SetId("")
 
 	return nil

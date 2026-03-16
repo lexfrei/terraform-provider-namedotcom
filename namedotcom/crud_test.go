@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/cockroachdb/errors"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
 
@@ -805,6 +806,141 @@ func TestResourceDomainNameServersRead_InvalidMeta(t *testing.T) {
 	err := namedotcom.ResourceDomainNameServersRead(data, "not a client")
 	if err == nil {
 		t.Fatal("expected error for invalid meta, got nil")
+	}
+}
+
+func TestResourceDomainNameServersRead_DomainNotFound(t *testing.T) {
+	initLimiters(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, `{"message":"Domain not found"}`, http.StatusNotFound)
+	})
+
+	client := newMockClient(t, mux)
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{},
+	})
+	data.SetId(testDomain)
+
+	err := namedotcom.ResourceDomainNameServersRead(data, client)
+	if err != nil {
+		t.Fatalf("expected nil error for not-found domain, got: %v", err)
+	}
+
+	if data.Id() != "" {
+		t.Errorf("ID should be empty after domain not found, got %q", data.Id())
+	}
+}
+
+func TestIsDomainNotFound(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{name: "nil error", err: nil, expected: false},
+		{name: "404 in message", err: errors.New("404 not found"), expected: true},
+		{name: "Not Found text", err: errors.New("Not Found"), expected: true},
+		{name: "other error", err: errors.New("connection refused"), expected: false},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := namedotcom.IsDomainNotFound(testCase.err)
+			if got != testCase.expected {
+				t.Errorf("isDomainNotFound(%v) = %v, want %v", testCase.err, got, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestResourceDomainNameServersCreate_VerifiesAPICall(t *testing.T) {
+	initLimiters(t)
+
+	setCalled := false
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
+		setCalled = true
+
+		if request.Method != http.MethodPost {
+			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
+
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{}`)
+	})
+
+	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns1.example.com"]}`)
+	})
+
+	client := newMockClient(t, mux)
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{"ns1.example.com"},
+	})
+
+	err := namedotcom.ResourceDomainNameServersCreate(data, client)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !setCalled {
+		t.Fatal("SetNameservers API was not called during Create")
+	}
+}
+
+func TestResourceDomainNameServersUpdate_VerifiesAPICall(t *testing.T) {
+	initLimiters(t)
+
+	setCalled := false
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
+		setCalled = true
+
+		if request.Method != http.MethodPost {
+			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
+
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{}`)
+	})
+
+	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns3.example.com"]}`)
+	})
+
+	client := newMockClient(t, mux)
+
+	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
+		"domain_name": testDomain,
+		"nameservers": []any{"ns3.example.com"},
+	})
+	data.SetId(testDomain)
+
+	err := namedotcom.ResourceDomainNameServersUpdate(data, client)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !setCalled {
+		t.Fatal("SetNameservers API was not called during Update")
 	}
 }
 
