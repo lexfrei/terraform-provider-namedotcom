@@ -137,7 +137,7 @@ The provider includes sophisticated rate limiting to respect Name.com API limits
 Resources support Terraform import:
 
 - DNS records: `domain_name:record_id` format
-- DNSSEC: `domain_name` format
+- DNSSEC: `domain_name_digest` format (splits at last underscore)
 - Use Name.com API to find record IDs for imports
 
 ## Testing Strategy
