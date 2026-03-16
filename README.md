@@ -15,22 +15,32 @@ A Terraform provider that allows you to manage your [Name.com](https://name.com)
 - ✅ Set up DNSSEC for domains
 - ✅ Built-in rate limiting (20 req/sec and 3000 req/hour by default)
 
+## Important: Terraform Registry Support
+
+> **⚠️ The Terraform Registry is supported on a best-effort basis only.**
+>
+> I strongly recommend migrating to [OpenTofu](https://opentofu.org/) — a drop-in replacement for Terraform with a reliable, community-driven registry.
+
 ## Installation
 
-### Using Terraform Registry (Recommended)
+### Using OpenTofu Registry (Recommended)
 
-This provider is available in the [Terraform Registry](https://registry.terraform.io/providers/lexfrei/namedotcom/latest). To use it, add the following to your Terraform configuration:
+This provider is available in the [OpenTofu Registry](https://search.opentofu.org/provider/lexfrei/namedotcom/latest). To use it, add the following to your configuration:
 
 ```hcl
 terraform {
   required_providers {
     namedotcom = {
       source  = "lexfrei/namedotcom"
-      version = "1.1.6"
+      version = "~> 2.2"
     }
   }
 }
 ```
+
+### Using Terraform Registry
+
+The provider is also listed in the [Terraform Registry](https://registry.terraform.io/providers/lexfrei/namedotcom/latest), but it may be outdated or broken. If you encounter issues, please switch to OpenTofu or install from source.
 
 ### Building from Source
 
