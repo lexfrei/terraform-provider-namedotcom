@@ -393,13 +393,13 @@ func TestResourceDomainNameServersCreate_Success(t *testing.T) {
 	}
 
 	// Verify Read was called after Create and populated nameservers from API
-	nameservers, ok := data.Get("nameservers").([]any)
+	nameservers, ok := data.Get("nameservers").(*schema.Set)
 	if !ok {
-		t.Fatal("nameservers is not []any")
+		t.Fatal("nameservers is not *schema.Set")
 	}
 
-	if len(nameservers) != 2 {
-		t.Fatalf("expected 2 nameservers after Create+Read, got %d", len(nameservers))
+	if nameservers.Len() != 2 {
+		t.Fatalf("expected 2 nameservers after Create+Read, got %d", nameservers.Len())
 	}
 }
 
@@ -798,21 +798,21 @@ func TestResourceDomainNameServersRead_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	nameservers, ok := data.Get("nameservers").([]any)
+	nameservers, ok := data.Get("nameservers").(*schema.Set)
 	if !ok {
-		t.Fatal("nameservers is not []any")
+		t.Fatal("nameservers is not *schema.Set")
 	}
 
-	if len(nameservers) != 2 {
-		t.Fatalf("expected 2 nameservers, got %d", len(nameservers))
+	if nameservers.Len() != 2 {
+		t.Fatalf("expected 2 nameservers, got %d", nameservers.Len())
 	}
 
-	if nameservers[0] != "ns1.example.com" {
-		t.Errorf("nameservers[0] = %q, want %q", nameservers[0], "ns1.example.com")
+	if !nameservers.Contains("ns1.example.com") {
+		t.Errorf("nameservers does not contain %q", "ns1.example.com")
 	}
 
-	if nameservers[1] != "ns2.example.com" {
-		t.Errorf("nameservers[1] = %q, want %q", nameservers[1], "ns2.example.com")
+	if !nameservers.Contains("ns2.example.com") {
+		t.Errorf("nameservers does not contain %q", "ns2.example.com")
 	}
 }
 
@@ -999,17 +999,21 @@ func TestResourceDomainNameServersUpdate_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	nameservers, ok := data.Get("nameservers").([]any)
+	nameservers, ok := data.Get("nameservers").(*schema.Set)
 	if !ok {
-		t.Fatal("nameservers is not []any")
+		t.Fatal("nameservers is not *schema.Set")
 	}
 
-	if len(nameservers) != 2 {
-		t.Fatalf("expected 2 nameservers, got %d", len(nameservers))
+	if nameservers.Len() != 2 {
+		t.Fatalf("expected 2 nameservers, got %d", nameservers.Len())
 	}
 
-	if nameservers[0] != "ns3.example.com" {
-		t.Errorf("nameservers[0] = %q, want %q", nameservers[0], "ns3.example.com")
+	if !nameservers.Contains("ns3.example.com") {
+		t.Errorf("nameservers does not contain %q", "ns3.example.com")
+	}
+
+	if !nameservers.Contains("ns4.example.com") {
+		t.Errorf("nameservers does not contain %q", "ns4.example.com")
 	}
 }
 

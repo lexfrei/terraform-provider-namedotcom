@@ -10,12 +10,25 @@ import (
 	"github.com/namedotcom/go/v4/namecom"
 )
 
+const keyNameservers = "nameservers"
+
 func resourceDomainNameServers() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceDomainNameServersCreate,
 		Read:   resourceDomainNameServersRead,
 		Update: resourceDomainNameServersUpdate,
 		Delete: resourceDomainNameServersDelete,
+
+		// Bumped from 0 → 1 when nameservers switched from TypeList to TypeSet
+		// so existing state values stored as cty.List can be coerced to cty.Set.
+		SchemaVersion: 1,
+		StateUpgraders: []schema.StateUpgrader{
+			{
+				Version: 0,
+				Type:    resourceDomainNameServersV0().CoreConfigSchema().ImpliedType(),
+				Upgrade: upgradeDomainNameServersV0ToV1,
+			},
+		},
 
 		Schema: map[string]*schema.Schema{
 			"domain_name": {
@@ -24,15 +37,47 @@ func resourceDomainNameServers() *schema.Resource {
 				ForceNew:    true,
 				Description: "DomainName is the punycode encoded value of the domain name.",
 			},
-			"nameservers": {
-				Type:     schema.TypeList,
+			keyNameservers: {
+				Type:     schema.TypeSet,
 				Optional: true,
+				Computed: true,
 				//nolint:lll //Description can be long
-				Description: "Nameservers is the list of nameservers for this domain. If unspecified it defaults to your account default nameservers.",
+				Description: "Nameservers is the set of nameservers for this domain. Order is not significant; the registry treats nameservers as a set. If unspecified it defaults to your account default nameservers.",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
 		},
 	}
+}
+
+// resourceDomainNameServersV0 returns the schema used before SchemaVersion 1,
+// when nameservers was a TypeList. Required so the SDK knows the source cty
+// type when reading older state during the upgrade.
+func resourceDomainNameServersV0() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"domain_name": {
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
+			keyNameservers: {
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
+		},
+	}
+}
+
+// upgradeDomainNameServersV0ToV1 is an identity upgrade: the raw element type
+// is unchanged (list of strings → set of strings), and the SDK handles the
+// cty list-to-set coercion based on the new schema.
+func upgradeDomainNameServersV0ToV1(
+	_ context.Context,
+	rawState map[string]any,
+	_ any,
+) (map[string]any, error) {
+	return rawState, nil
 }
 
 // setNameservers calls the Name.com API to set nameservers for a domain.
@@ -51,12 +96,12 @@ func setNameservers(data *schema.ResourceData, client *namecom.NameCom) error {
 		DomainName: domainName,
 	}
 
-	nameservers, isSlice := data.Get("nameservers").([]any)
-	if !isSlice {
-		return errors.New("Error converting nameservers to []any")
+	nameservers, isSet := data.Get(keyNameservers).(*schema.Set)
+	if !isSet {
+		return errors.New("Error converting nameservers to *schema.Set")
 	}
 
-	for _, nameserver := range nameservers {
+	for _, nameserver := range nameservers.List() {
 		nameserverString, isStr := nameserver.(string)
 		if !isStr {
 			return errors.New("Error converting nameserver to string")
@@ -129,7 +174,7 @@ func resourceDomainNameServersRead(data *schema.ResourceData, meta any) error {
 		nameservers[idx] = ns
 	}
 
-	err = data.Set("nameservers", nameservers)
+	err = data.Set(keyNameservers, nameservers)
 	if err != nil {
 		return errors.Wrap(err, "Error setting nameservers")
 	}
