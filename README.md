@@ -1,8 +1,11 @@
 # Terraform Provider for Name.com
 
+[![OpenTofu Registry](https://img.shields.io/badge/OpenTofu%20Registry-namedotcom-FFDA18?logo=opentofu)](https://search.opentofu.org/provider/lexfrei/namedotcom/latest)
+[![Terraform Registry](https://img.shields.io/badge/Terraform%20Registry-namedotcom-844FBA?logo=terraform)](https://registry.terraform.io/providers/lexfrei/namedotcom/latest)
+[![Latest Release](https://img.shields.io/github/v/release/lexfrei/terraform-provider-namedotcom?label=release)](https://github.com/lexfrei/terraform-provider-namedotcom/releases/latest)
+[![License](https://img.shields.io/github/license/lexfrei/terraform-provider-namedotcom)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/lexfrei/terraform-provider-namedotcom)](https://goreportcard.com/report/github.com/lexfrei/terraform-provider-namedotcom)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/lexfrei/terraform-provider-namedotcom/lint.yaml)
-![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/lexfrei/terraform-provider-namedotcom)
+![CI](https://img.shields.io/github/actions/workflow/status/lexfrei/terraform-provider-namedotcom/lint.yaml?label=CI)
 
 A Terraform provider that allows you to manage your [Name.com](https://name.com) DNS records and domain settings using infrastructure as code.
 
