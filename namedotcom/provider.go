@@ -20,31 +20,31 @@ const (
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
-			"username": {
+			keyUsername: {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("NAMEDOTCOM_USERNAME", nil),
 				Description: "Name.com API Username; can alternatively be specified via `NAMEDOTCOM_USERNAME` environment variable.",
 			},
-			"token": {
+			keyToken: {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("NAMEDOTCOM_TOKEN", nil),
 				Description: "Name.com API Token Value; can alternatively be specified via `NAMEDOTCOM_TOKEN` environment variable.",
 			},
-			"rate_limit_per_second": {
+			keyRateLimitPerSecond: {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     defaultRateLimitPerSecond,
 				Description: "Maximum number of API requests per second. Defaults to 20.",
 			},
-			"rate_limit_per_hour": {
+			keyRateLimitPerHour: {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     defaultRateLimitPerHour,
 				Description: "Maximum number of API requests per hour. Defaults to 3000.",
 			},
-			"timeout": {
+			keyTimeout: {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     defaultTimeoutSeconds,
@@ -73,7 +73,7 @@ func ProviderConfigure(_ context.Context, data *schema.ResourceData) (any, diag.
 	var diags diag.Diagnostics
 
 	// Check for required fields
-	token, ok := data.Get("token").(string)
+	token, ok := data.Get(keyToken).(string)
 	if !ok || token == "" {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
@@ -84,7 +84,7 @@ func ProviderConfigure(_ context.Context, data *schema.ResourceData) (any, diag.
 		return nil, diags
 	}
 
-	username, ok := data.Get("username").(string)
+	username, ok := data.Get(keyUsername).(string)
 	if !ok || username == "" {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
@@ -97,14 +97,14 @@ func ProviderConfigure(_ context.Context, data *schema.ResourceData) (any, diag.
 
 	// Get rate limits from configuration or use defaults
 	perSecondLimit := defaultRateLimitPerSecond
-	if v, ok := data.GetOk("rate_limit_per_second"); ok {
+	if v, ok := data.GetOk(keyRateLimitPerSecond); ok {
 		if val, validType := v.(int); validType {
 			perSecondLimit = val
 		}
 	}
 
 	perHourLimit := defaultRateLimitPerHour
-	if v, ok := data.GetOk("rate_limit_per_hour"); ok {
+	if v, ok := data.GetOk(keyRateLimitPerHour); ok {
 		if val, validType := v.(int); validType {
 			perHourLimit = val
 		}
@@ -117,7 +117,7 @@ func ProviderConfigure(_ context.Context, data *schema.ResourceData) (any, diag.
 	namecomClient := namecom.New(username, token)
 
 	// Set timeout on the client
-	timeoutValue := data.Get("timeout")
+	timeoutValue := data.Get(keyTimeout)
 	if timeoutInt, ok := timeoutValue.(int); ok {
 		namecomClient.Client.Timeout = time.Duration(timeoutInt) * time.Second
 	} else {

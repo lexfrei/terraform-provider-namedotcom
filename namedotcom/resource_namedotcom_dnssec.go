@@ -26,44 +26,44 @@ func validateIntForInt32(value int, fieldName string) error {
 // getDNSSECFromResourceData builds a DNSSEC struct from ResourceData.
 func getDNSSECFromResourceData(data *schema.ResourceData) (*namecom.DNSSEC, error) {
 	// Get and validate values
-	keyTagValue, isInt := data.Get("key_tag").(int)
+	keyTagValue, isInt := data.Get(keyKeyTag).(int)
 	if !isInt {
 		return nil, errors.New("Error getting key_tag as int")
 	}
 
-	algorithmValue, isInt := data.Get("algorithm").(int)
+	algorithmValue, isInt := data.Get(keyAlgorithm).(int)
 	if !isInt {
 		return nil, errors.New("Error getting algorithm as int")
 	}
 
-	digestTypeValue, isInt := data.Get("digest_type").(int)
+	digestTypeValue, isInt := data.Get(keyDigestType).(int)
 	if !isInt {
 		return nil, errors.New("Error getting digest_type as int")
 	}
 
 	// Validate int32 ranges
-	err := validateIntForInt32(keyTagValue, "key_tag")
+	err := validateIntForInt32(keyTagValue, keyKeyTag)
 	if err != nil {
 		return nil, err
 	}
 
-	err = validateIntForInt32(algorithmValue, "algorithm")
+	err = validateIntForInt32(algorithmValue, keyAlgorithm)
 	if err != nil {
 		return nil, err
 	}
 
-	err = validateIntForInt32(digestTypeValue, "digest_type")
+	err = validateIntForInt32(digestTypeValue, keyDigestType)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get string values
-	domainName, isStr := data.Get("domain_name").(string)
+	domainName, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return nil, errors.New("Error getting domain_name as string")
 	}
 
-	digest, isStr := data.Get("digest").(string)
+	digest, isStr := data.Get(keyDigest).(string)
 	if !isStr {
 		return nil, errors.New("Error getting digest as string")
 	}
@@ -95,31 +95,31 @@ func resourceDNSSEC() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"domain_name": {
+			keyDomainName: {
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
 				Description: "DomainName is the zone that the DNSSEC belongs to",
 			},
-			"key_tag": {
+			keyKeyTag: {
 				Type:        schema.TypeInt,
 				Required:    true,
 				ForceNew:    true,
 				Description: "KeyTag contains the key tag value of the DNSKEY RR that validates this signature.",
 			},
-			"algorithm": {
+			keyAlgorithm: {
 				Type:        schema.TypeInt,
 				Required:    true,
 				ForceNew:    true,
 				Description: "Algorithm is an integer identifying the algorithm used for signing. ",
 			},
-			"digest_type": {
+			keyDigestType: {
 				Type:        schema.TypeInt,
 				Required:    true,
 				ForceNew:    true,
 				Description: "DigestType is an integer identifying the algorithm used to create the digest.",
 			},
-			"digest": {
+			keyDigest: {
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
@@ -187,27 +187,27 @@ func resourceDNSSECImporter(data *schema.ResourceData, meta any) ([]*schema.Reso
 		return nil, errors.Wrap(err, "Error GetDNSSECRequest")
 	}
 
-	err = data.Set("domain_name", DNSSEC.DomainName)
+	err = data.Set(keyDomainName, DNSSEC.DomainName)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error setting domain_name")
 	}
 
-	err = data.Set("key_tag", int(DNSSEC.KeyTag))
+	err = data.Set(keyKeyTag, int(DNSSEC.KeyTag))
 	if err != nil {
 		return nil, errors.Wrap(err, "Error setting key_tag")
 	}
 
-	err = data.Set("algorithm", int(DNSSEC.Algorithm))
+	err = data.Set(keyAlgorithm, int(DNSSEC.Algorithm))
 	if err != nil {
 		return nil, errors.Wrap(err, "Error setting algorithm")
 	}
 
-	err = data.Set("digest_type", int(DNSSEC.DigestType))
+	err = data.Set(keyDigestType, int(DNSSEC.DigestType))
 	if err != nil {
 		return nil, errors.Wrap(err, "Error setting digest_type")
 	}
 
-	err = data.Set("digest", DNSSEC.Digest)
+	err = data.Set(keyDigest, DNSSEC.Digest)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error setting digest")
 	}
@@ -267,12 +267,12 @@ func validateClient(meta any) (*namecom.NameCom, error) {
 
 // extractDNSSECParams extracts domain name and digest from resource data.
 func extractDNSSECParams(data *schema.ResourceData) (domainName, digest string, err error) {
-	domainNameString, isStr := data.Get("domain_name").(string)
+	domainNameString, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return "", "", errors.New("Error getting domain_name")
 	}
 
-	digestString, isStr := data.Get("digest").(string)
+	digestString, isStr := data.Get(keyDigest).(string)
 	if !isStr {
 		return "", "", errors.New("Error getting digest")
 	}
@@ -298,11 +298,11 @@ func fetchDNSSECData(client *namecom.NameCom, domainName, digest string) (*namec
 // setDNSSECAttributes sets all DNSSEC attributes in the resource data.
 func setDNSSECAttributes(data *schema.ResourceData, dnssec *namecom.DNSSEC) error {
 	attributes := map[string]any{
-		"domain_name": dnssec.DomainName,
-		"key_tag":     int(dnssec.KeyTag),
-		"algorithm":   int(dnssec.Algorithm),
-		"digest_type": int(dnssec.DigestType),
-		"digest":      dnssec.Digest,
+		keyDomainName: dnssec.DomainName,
+		keyKeyTag:     int(dnssec.KeyTag),
+		keyAlgorithm:  int(dnssec.Algorithm),
+		keyDigestType: int(dnssec.DigestType),
+		keyDigest:     dnssec.Digest,
 	}
 
 	for key, value := range attributes {
@@ -328,12 +328,12 @@ func resourceDNSSECDelete(data *schema.ResourceData, meta any) error {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
-	domainNameString, isStr := data.Get("domain_name").(string)
+	domainNameString, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
 
-	digestString, isStr := data.Get("digest").(string)
+	digestString, isStr := data.Get(keyDigest).(string)
 	if !isStr {
 		return errors.New("Error getting digest")
 	}

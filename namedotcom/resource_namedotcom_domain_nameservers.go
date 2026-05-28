@@ -10,8 +10,6 @@ import (
 	"github.com/namedotcom/go/v4/namecom"
 )
 
-const keyNameservers = "nameservers"
-
 func resourceDomainNameServers() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceDomainNameServersCreate,
@@ -31,7 +29,7 @@ func resourceDomainNameServers() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"domain_name": {
+			keyDomainName: {
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
@@ -55,7 +53,7 @@ func resourceDomainNameServers() *schema.Resource {
 func resourceDomainNameServersV0() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
-			"domain_name": {
+			keyDomainName: {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
@@ -87,7 +85,7 @@ func setNameservers(data *schema.ResourceData, client *namecom.NameCom) error {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
-	domainName, isStr := data.Get("domain_name").(string)
+	domainName, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error converting domain_name to string")
 	}
@@ -129,7 +127,7 @@ func resourceDomainNameServersCreate(data *schema.ResourceData, meta any) error 
 		return err
 	}
 
-	domainName, isStr := data.Get("domain_name").(string)
+	domainName, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error converting domain_name to string")
 	}
@@ -150,7 +148,7 @@ func resourceDomainNameServersRead(data *schema.ResourceData, meta any) error {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
-	domainName, isStr := data.Get("domain_name").(string)
+	domainName, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error converting domain_name to string")
 	}
@@ -225,7 +223,7 @@ func resourceDomainNameServersDelete(data *schema.ResourceData, meta any) error 
 		return errors.Wrap(err, "rate limiting error")
 	}
 
-	domainName, isStr := data.Get("domain_name").(string)
+	domainName, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error converting domain_name to string")
 	}
