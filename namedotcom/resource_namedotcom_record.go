@@ -22,27 +22,27 @@ func resourceRecord() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"record_id": {
+			keyRecordID: {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Description: "Unique record id. Value is ignored on Create, and must match the URI on Update.",
 			},
-			"domain_name": {
+			keyDomainName: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "DomainName is the zone that the record belongs to",
 			},
-			"host": {
+			keyHost: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Host is the hostname relative to the zone",
 			},
-			"record_type": {
+			keyRecordType: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Type is one of the following: A, AAAA, ANAME, CNAME, MX, NS, SRV, or TXT",
 			},
-			"answer": {
+			keyAnswer: {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Answer is either the IP address for A or AAAA records",
@@ -64,22 +64,22 @@ func resourceRecordCreate(data *schema.ResourceData, meta any) error {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
-	domainName, isStr := data.Get("domain_name").(string)
+	domainName, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error getting domain_name as string")
 	}
 
-	host, isStr := data.Get("host").(string)
+	host, isStr := data.Get(keyHost).(string)
 	if !isStr {
 		return errors.New("Error getting host as string")
 	}
 
-	recordType, isStr := data.Get("record_type").(string)
+	recordType, isStr := data.Get(keyRecordType).(string)
 	if !isStr {
 		return errors.New("Error getting record_type as string")
 	}
 
-	answer, isStr := data.Get("answer").(string)
+	answer, isStr := data.Get(keyAnswer).(string)
 	if !isStr {
 		return errors.New("Error getting answer as string")
 	}
@@ -110,7 +110,7 @@ func resourceRecordImporter(data *schema.ResourceData, _ any) ([]*schema.Resourc
 		return nil, err
 	}
 
-	err = data.Set("domain_name", importDomainName)
+	err = data.Set(keyDomainName, importDomainName)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error setting domain_name")
 	}
@@ -151,7 +151,7 @@ func resourceRecordRead(data *schema.ResourceData, meta any) error {
 		return errors.Wrap(err, "error converting Record ID")
 	}
 
-	domainString, isStr := data.Get("domain_name").(string)
+	domainString, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
@@ -166,22 +166,22 @@ func resourceRecordRead(data *schema.ResourceData, meta any) error {
 		return errors.Wrap(err, "Error GetRecord")
 	}
 
-	err = data.Set("domain_name", record.DomainName)
+	err = data.Set(keyDomainName, record.DomainName)
 	if err != nil {
 		return errors.Wrap(err, "Error setting domain_name")
 	}
 
-	err = data.Set("host", record.Host)
+	err = data.Set(keyHost, record.Host)
 	if err != nil {
 		return errors.Wrap(err, "Error setting host")
 	}
 
-	err = data.Set("record_type", record.Type)
+	err = data.Set(keyRecordType, record.Type)
 	if err != nil {
 		return errors.Wrap(err, "Error setting record_type")
 	}
 
-	err = data.Set("answer", record.Answer)
+	err = data.Set(keyAnswer, record.Answer)
 	if err != nil {
 		return errors.Wrap(err, "Error setting answer")
 	}
@@ -207,7 +207,7 @@ func resourceRecordUpdate(data *schema.ResourceData, meta any) error {
 		return errors.Wrap(err, "error converting Record ID")
 	}
 
-	domainNameString, isStr := data.Get("domain_name").(string)
+	domainNameString, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
@@ -261,7 +261,7 @@ func resourceRecordDelete(data *schema.ResourceData, meta any) error {
 		return errors.Wrap(err, "error converting Record ID")
 	}
 
-	domainNameString, isStr := data.Get("domain_name").(string)
+	domainNameString, isStr := data.Get(keyDomainName).(string)
 	if !isStr {
 		return errors.New("Error getting domain_name")
 	}
