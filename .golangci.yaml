@@ -6,6 +6,9 @@ linters:
     - exhaustruct
     - gochecknoglobals
     - gochecknoinits
+    # gomodguard is deprecated since golangci-lint v2.12.0; gomodguard_v2
+    # (also enabled via `default: all`) replaces it.
+    - gomodguard
     - nonamedreturns
     - wsl
     - wsl_v5
@@ -19,6 +22,10 @@ linters:
     gocritic:
       disabled-checks:
         - dupImport
+        # The terraform-plugin-framework interfaces pass their Request structs
+        # by value; the signatures are fixed by the framework contract and
+        # cannot be changed to pointers.
+        - hugeParam
       enabled-tags:
         - diagnostic
         - experimental
@@ -27,6 +34,10 @@ linters:
         - style
     gocyclo:
       min-complexity: 10
+    lll:
+      # terraform-plugin-framework method signatures (verbose Request/Response
+      # type names plus the receiver) routinely run past the default 120.
+      line-length: 140
     nolintlint:
       require-explanation: false
       require-specific: false
@@ -57,10 +68,12 @@ linters:
     rules:
       # Schema attribute keys and fixed test values legitimately repeat
       # across table-driven tests; hoisting each one to a constant only
-      # adds indirection without making the tests clearer.
+      # adds indirection without making the tests clearer. The mock-server
+      # setup in CRUD tests is also intentionally near-identical per resource.
       - path: _test\.go
         linters:
           - goconst
+          - dupl
 formatters:
   enable:
     - gofmt

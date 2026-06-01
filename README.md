@@ -13,7 +13,7 @@ A Terraform provider that allows you to manage your [Name.com](https://name.com)
 
 ## Features
 
-- ✅ Create and manage DNS records (A, AAAA, CNAME, MX, NS, SRV, TXT)
+- ✅ Create and manage DNS records (A, AAAA, ANAME, CNAME, MX, NS, SRV, TXT)
 - ✅ Configure nameservers for domains
 - ✅ Set up DNSSEC for domains
 - ✅ Built-in rate limiting (20 req/sec and 3000 req/hour by default)
@@ -23,6 +23,15 @@ A Terraform provider that allows you to manage your [Name.com](https://name.com)
 > **⚠️ The Terraform Registry is supported on a best-effort basis only.**
 >
 > I strongly recommend migrating to [OpenTofu](https://opentofu.org/) — a drop-in replacement for Terraform with a reliable, community-driven registry.
+
+## Upgrading to v4.0.0
+
+v4.0.0 rebuilds the provider on the Terraform Plugin Framework. There are two breaking changes to be aware of:
+
+- **Minimum tooling**: the provider now serves protocol 6 and requires Terraform >= 1.0 or any OpenTofu version.
+- **`record_id` is now read-only**: it was always assigned by Name.com, so it is now a computed attribute. If you set `record_id` explicitly in a `namedotcom_record` block, remove it — `terraform plan` will otherwise reject it as a read-only attribute. The record's identifier is exposed as the computed `id` (and mirrored as the numeric `record_id`).
+
+Existing state migrates automatically — no manual state edits are required and no resources are replaced. `domain_name` and `record_type` force replacement only on a genuine change; a difference that is purely DNS canonicalization (letter case, or a trailing dot on the answer) does not, so records created by older versions are not destroyed and recreated. The first plan after upgrading may show benign in-place updates: the now-computed `record_id` populates from the API, and `record_type`/`answer` normalize to the representation in your configuration. These are cosmetic refreshes, not replacements.
 
 ## Installation
 
@@ -35,7 +44,7 @@ terraform {
   required_providers {
     namedotcom = {
       source  = "lexfrei/namedotcom"
-      version = "~> 2.2"
+      version = "~> 4.0"
     }
   }
 }
@@ -205,11 +214,11 @@ curl -u 'username:token' 'https://api.name.com/v4/domains/example.com/records'
 To import existing DNSSEC settings:
 
 ```bash
-# Format: terraform import namedotcom_dnssec.[resource_name] [domain_name]
-terraform import namedotcom_dnssec.example_dnssec example.com
+# Format: terraform import namedotcom_dnssec.[resource_name] [domain_name]_[digest]
+terraform import namedotcom_dnssec.example_dnssec example.com_6B3ED3311DE85004BF6DD325BA82340BC89B40B86D4055780F3BE4390B81B59A
 
 # For resources in a for_each block
-terraform import 'namedotcom_dnssec.dnssec["example.com"]' example.com
+terraform import 'namedotcom_dnssec.dnssec["example.com"]' example.com_6B3ED3311DE85004BF6DD325BA82340BC89B40B86D4055780F3BE4390B81B59A
 ```
 
 ## Resource Documentation

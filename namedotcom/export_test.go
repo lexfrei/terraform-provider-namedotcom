@@ -1,30 +1,34 @@
 package namedotcom
 
-// Test-only exports for white-box testing from namedotcom_test package.
+// Test-only exports for white-box testing from the namedotcom_test package.
 
 var (
-	ResourceRecordImporterParseID   = resourceRecordImporterParseID
-	ResourceDNSSECImporterParseID   = resourceDNSSECImporterParseID
-	ValidateIntForInt32             = validateIntForInt32
-	ValidateClient                  = validateClient
-	ResourceRecordCreate            = resourceRecordCreate
-	ResourceRecordRead              = resourceRecordRead
-	ResourceRecordUpdate            = resourceRecordUpdate
-	ResourceRecordDelete            = resourceRecordDelete
-	ResourceRecordImporter          = resourceRecordImporter
-	ResourceDNSSECCreate            = resourceDNSSECCreate
-	ResourceDNSSECRead              = resourceDNSSECRead
-	ResourceDNSSECDelete            = resourceDNSSECDelete
-	ResourceDNSSECImporter          = resourceDNSSECImporter
-	ResourceDomainNameServersCreate = resourceDomainNameServersCreate
-	ResourceDomainNameServersRead   = resourceDomainNameServersRead
-	ResourceDomainNameServersUpdate = resourceDomainNameServersUpdate
-	ResourceDomainNameServersDelete = resourceDomainNameServersDelete
-	GetDNSSECFromResourceData       = getDNSSECFromResourceData
-	IsDomainNotFound                = isDomainNotFound
-	ResourceRecord                  = resourceRecord
-	ResourceDNSSEC                  = resourceDNSSEC
-	ResourceDomainNameServers       = resourceDomainNameServers
-	DefaultPerSecondLimit           = defaultPerSecondLimit
-	DefaultPerHourLimit             = defaultPerHourLimit
+	// Import-ID parsing helpers.
+	ResourceRecordImporterParseID = resourceRecordImporterParseID
+	ResourceDNSSECImporterParseID = resourceDNSSECImporterParseID
+	ParseRecordID                 = parseRecordID
+
+	// Provider configuration helpers.
+	ResolveCredentials = resolveCredentials
+	BuildClient        = buildClient
+	ConfigureClient    = configureClient
+
+	// Resource helpers.
+	IsNotFoundError    = isNotFoundError
+	ExtractNameservers = extractNameservers
+
+	// API translation helpers.
+	CreateRecordAPI    = createRecordAPI
+	ReadRecordAPI      = readRecordAPI
+	UpdateRecordAPI    = updateRecordAPI
+	DeleteRecordAPI    = deleteRecordAPI
+	CreateDNSSECAPI    = createDNSSECAPI
+	ReadDNSSECAPI      = readDNSSECAPI
+	DeleteDNSSECAPI    = deleteDNSSECAPI
+	SetNameserversAPI  = setNameserversAPI
+	ReadNameserversAPI = readNameserversAPI
+
+	// Rate limiter defaults.
+	DefaultPerSecondLimit = defaultPerSecondLimit
+	DefaultPerHourLimit   = defaultPerHourLimit
 )

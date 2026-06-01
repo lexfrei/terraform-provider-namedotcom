@@ -1,200 +1,187 @@
-//nolint:paralleltest // Can't run provider tests in parallel due to global rate limiter state
+//nolint:paralleltest // Provider tests touch the global rate limiter state via BuildClient
 package namedotcom_test
 
 import (
 	"context"
 	"testing"
+	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/namedotcom/go/v4/namecom"
 
-	"github.com/lexfrei/terraform-provider-namedotcom/namedotcom"
+	namedotcom "github.com/lexfrei/terraform-provider-namedotcom/namedotcom"
 )
 
 func TestProviderSchema(t *testing.T) {
-	t.Parallel()
+	prov := namedotcom.New("test")()
 
-	provider := namedotcom.Provider()
+	var resp provider.SchemaResponse
 
-	if provider == nil {
-		t.Fatal("Provider() returned nil")
+	prov.Schema(context.Background(), provider.SchemaRequest{}, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("provider schema returned diagnostics: %v", resp.Diagnostics)
 	}
 
-	// Test provider schema
-	if provider.Schema == nil {
-		t.Fatal("Provider schema is nil")
-	}
-
-	// Test required fields exist in schema
-	requiredFields := []string{"username", "token"}
-	for _, field := range requiredFields {
-		if _, exists := provider.Schema[field]; !exists {
-			t.Errorf("Required field '%s' not found in provider schema", field)
-		}
-
-		if !provider.Schema[field].Required {
-			t.Errorf("Field '%s' should be required", field)
+	for _, field := range []string{"username", "token", "rate_limit_per_second", "rate_limit_per_hour", "timeout"} {
+		if _, ok := resp.Schema.Attributes[field]; !ok {
+			t.Errorf("provider schema missing attribute %q", field)
 		}
 	}
 
-	// Test optional fields exist in schema
-	optionalFields := []string{"rate_limit_per_second", "rate_limit_per_hour", "timeout"}
-	for _, field := range optionalFields {
-		if _, exists := provider.Schema[field]; !exists {
-			t.Errorf("Optional field '%s' not found in provider schema", field)
-		}
+	// Credentials are optional (they can be supplied via environment variables).
+	if resp.Schema.Attributes["username"].IsRequired() {
+		t.Error("username should be optional so it can fall back to NAMEDOTCOM_USERNAME")
+	}
 
-		if provider.Schema[field].Required {
-			t.Errorf("Field '%s' should be optional", field)
-		}
+	if !resp.Schema.Attributes["token"].IsSensitive() {
+		t.Error("token should be marked sensitive")
 	}
 }
 
-func TestProviderDefaults(t *testing.T) {
-	t.Parallel()
+func TestProviderMetadata(t *testing.T) {
+	prov := namedotcom.New("1.2.3")()
 
-	provider := namedotcom.Provider()
+	var resp provider.MetadataResponse
 
-	// Test default values for optional fields
-	if provider.Schema["rate_limit_per_second"].Default != 20 {
-		t.Errorf("rate_limit_per_second default should be %d, got %v",
-			20, provider.Schema["rate_limit_per_second"].Default)
+	prov.Metadata(context.Background(), provider.MetadataRequest{}, &resp)
+
+	if resp.TypeName != "namedotcom" {
+		t.Errorf("TypeName = %q, want %q", resp.TypeName, "namedotcom")
 	}
 
-	if provider.Schema["rate_limit_per_hour"].Default != 3000 {
-		t.Errorf("rate_limit_per_hour default should be %d, got %v",
-			3000, provider.Schema["rate_limit_per_hour"].Default)
-	}
-
-	if provider.Schema["timeout"].Default != 120 {
-		t.Errorf("timeout default should be %d, got %v",
-			120, provider.Schema["timeout"].Default)
+	if resp.Version != "1.2.3" {
+		t.Errorf("Version = %q, want %q", resp.Version, "1.2.3")
 	}
 }
 
 func TestProviderResources(t *testing.T) {
-	t.Parallel()
+	prov := namedotcom.New("test")()
 
-	provider := namedotcom.Provider()
-
-	// Test resources map
-	expectedResources := []string{
-		"namedotcom_record",
-		"namedotcom_domain_nameservers",
-		"namedotcom_dnssec",
-	}
-
-	for _, resourceName := range expectedResources {
-		if _, exists := provider.ResourcesMap[resourceName]; !exists {
-			t.Errorf("Expected resource '%s' not found in ResourcesMap", resourceName)
-		}
-	}
-
-	// Test that ConfigureContextFunc is set
-	if provider.ConfigureContextFunc == nil {
-		t.Error("Provider ConfigureContextFunc is nil")
+	resources := prov.Resources(context.Background())
+	if len(resources) != 3 {
+		t.Fatalf("expected 3 resources, got %d", len(resources))
 	}
 }
 
-func TestProviderConfigure_Success(t *testing.T) {
-
-	// Create test data
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
-		"username": "testuser",
-		"token":    "testtoken",
-	})
-
-	// Test provider configuration
-	client, diags := namedotcom.ProviderConfigure(context.TODO(), resourceData)
-	if diags.HasError() {
-		t.Fatalf("ProviderConfigure failed: %v", diags)
-	}
+func TestBuildClient_Defaults(t *testing.T) {
+	client := namedotcom.BuildClient("u", "t", types.Int64Null(), types.Int64Null(), types.Int64Null())
 
 	if client == nil {
-		t.Fatal("ProviderConfigure returned nil client")
+		t.Fatal("BuildClient returned nil")
+	}
+
+	if client.Client.Timeout != 120*time.Second {
+		t.Errorf("default timeout = %v, want %v", client.Client.Timeout, 120*time.Second)
 	}
 }
 
-func TestProviderConfigure_MissingToken(t *testing.T) {
-
-	// Test with missing token
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
-		"username": "testuser",
-	})
-
-	_, diags := namedotcom.ProviderConfigure(context.TODO(), resourceData)
-	if !diags.HasError() {
-		t.Error("Expected error when token is missing")
-	}
-}
-
-func TestProviderConfigure_MissingUsername(t *testing.T) {
-
-	// Test with missing username
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
-		"token": "testtoken",
-	})
-
-	_, diags := namedotcom.ProviderConfigure(context.TODO(), resourceData)
-	if !diags.HasError() {
-		t.Error("Expected error when username is missing")
-	}
-}
-
-func TestProviderConfigure_EmptyCredentials(t *testing.T) {
-
-	// Test with empty credentials
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
-		"username": "",
-		"token":    "",
-	})
-
-	_, diags := namedotcom.ProviderConfigure(context.TODO(), resourceData)
-	if !diags.HasError() {
-		t.Error("Expected error when credentials are empty")
-	}
-}
-
-func TestProviderConfigure_CustomRateLimits(t *testing.T) {
-
-	// Test with custom rate limits
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
-		"username":              "testuser",
-		"token":                 "testtoken",
-		"rate_limit_per_second": 10,
-		"rate_limit_per_hour":   1000,
-		"timeout":               60,
-	})
-
-	client, diags := namedotcom.ProviderConfigure(context.TODO(), resourceData)
-	if diags.HasError() {
-		t.Fatalf("ProviderConfigure failed: %v", diags)
-	}
+func TestBuildClient_Custom(t *testing.T) {
+	client := namedotcom.BuildClient("u", "t", types.Int64Value(10), types.Int64Value(1000), types.Int64Value(60))
 
 	if client == nil {
-		t.Fatal("ProviderConfigure returned nil client")
+		t.Fatal("BuildClient returned nil")
+	}
+
+	if client.Client.Timeout != 60*time.Second {
+		t.Errorf("custom timeout = %v, want %v", client.Client.Timeout, 60*time.Second)
 	}
 }
 
-func TestProviderConfigure_DefaultValues(t *testing.T) {
+func TestResolveCredentials_ConfigWins(t *testing.T) {
+	t.Setenv("NAMEDOTCOM_USERNAME", "env-user")
+	t.Setenv("NAMEDOTCOM_TOKEN", "env-token")
 
-	// Test that default values are used when not specified
-	resourceData := schema.TestResourceDataRaw(t, namedotcom.Provider().Schema, map[string]any{
-		"username": "testuser",
-		"token":    "testtoken",
-	})
+	username, token, missing := namedotcom.ResolveCredentials(types.StringValue("cfg-user"), types.StringValue("cfg-token"))
 
-	client, diags := namedotcom.ProviderConfigure(context.TODO(), resourceData)
+	if username != "cfg-user" || token != "cfg-token" {
+		t.Errorf("config values should win, got %q/%q", username, token)
+	}
+
+	if len(missing) != 0 {
+		t.Errorf("expected no missing credentials, got %v", missing)
+	}
+}
+
+func TestResolveCredentials_EnvFallback(t *testing.T) {
+	t.Setenv("NAMEDOTCOM_USERNAME", "env-user")
+	t.Setenv("NAMEDOTCOM_TOKEN", "env-token")
+
+	username, token, missing := namedotcom.ResolveCredentials(types.StringNull(), types.StringNull())
+
+	if username != "env-user" || token != "env-token" {
+		t.Errorf("expected env fallback, got %q/%q", username, token)
+	}
+
+	if len(missing) != 0 {
+		t.Errorf("expected no missing credentials, got %v", missing)
+	}
+}
+
+func TestResolveCredentials_Missing(t *testing.T) {
+	t.Setenv("NAMEDOTCOM_USERNAME", "")
+	t.Setenv("NAMEDOTCOM_TOKEN", "")
+
+	_, _, missing := namedotcom.ResolveCredentials(types.StringNull(), types.StringNull())
+
+	if len(missing) != 2 {
+		t.Fatalf("expected both credentials reported missing, got %v", missing)
+	}
+}
+
+func TestResolveCredentials_ExplicitEmptyDoesNotFallBack(t *testing.T) {
+	t.Setenv("NAMEDOTCOM_USERNAME", "env-user")
+
+	// An explicit empty string in config disables the env fallback and is
+	// reported as missing, matching SDKv2's EnvDefaultFunc behaviour.
+	_, _, missing := namedotcom.ResolveCredentials(types.StringValue(""), types.StringValue("tok"))
+
+	if len(missing) != 1 || missing[0] != "username" {
+		t.Errorf("expected only username reported missing, got %v", missing)
+	}
+}
+
+func TestConfigureClient_Valid(t *testing.T) {
+	var diags diag.Diagnostics
+
+	client, ok := namedotcom.ConfigureClient(&namecom.NameCom{}, &diags)
+
+	if !ok || client == nil {
+		t.Fatal("expected a valid client")
+	}
+
 	if diags.HasError() {
-		t.Fatalf("ProviderConfigure failed: %v", diags)
+		t.Errorf("unexpected diagnostics: %v", diags)
+	}
+}
+
+func TestConfigureClient_WrongType(t *testing.T) {
+	var diags diag.Diagnostics
+
+	client, ok := namedotcom.ConfigureClient("not a client", &diags)
+
+	if ok || client != nil {
+		t.Error("expected failure for the wrong provider data type")
 	}
 
-	if client == nil {
-		t.Fatal("ProviderConfigure returned nil client")
+	if !diags.HasError() {
+		t.Error("expected an error diagnostic for the wrong provider data type")
+	}
+}
+
+func TestConfigureClient_Nil(t *testing.T) {
+	var diags diag.Diagnostics
+
+	client, ok := namedotcom.ConfigureClient(nil, &diags)
+
+	if ok || client != nil {
+		t.Error("expected nil provider data to yield no client")
 	}
 
-	// Verify default timeout is applied by checking the configured value
-	timeoutValue := resourceData.Get("timeout")
-	if timeoutValue != 120 {
-		t.Errorf("Expected default timeout %d, got %v", 120, timeoutValue)
+	// nil ProviderData is the normal pre-Configure state and must not raise an error.
+	if diags.HasError() {
+		t.Errorf("nil provider data should not raise diagnostics, got: %v", diags)
 	}
 }

@@ -20,13 +20,13 @@ resource "namedotcom_record" "bar" {
   answer = "bar.com"
 }
 
-// foo.example.com -> 10.1.2.3
+// foo.example.com -> 192.0.2.3
 
 resource "namedotcom_record" "foo" {
   domain_name = "example.com"
   host = "foo"
   record_type = "A"
-  answer = "10.1.2.3"
+  answer = "192.0.2.3"
 }
 ```
 
@@ -53,15 +53,15 @@ resource "namedotcom_record" "domain-me" {
 
 ### Optional
 
-- `answer` (String) Answer is either the IP address for A or AAAA records
-- `domain_name` (String) DomainName is the zone that the record belongs to
-- `host` (String) Host is the hostname relative to the zone
-- `record_id` (Number) Unique record id. Value is ignored on Create, and must match the URI on Update.
-- `record_type` (String) Type is one of the following: A, AAAA, ANAME, CNAME, MX, NS, SRV, or TXT
+- `answer` (String) Answer is the record value: the IP address for A and AAAA records, the target for ANAME, CNAME, MX, NS, and SRV records, or the text for TXT records.
+- `domain_name` (String) DomainName is the zone that the record belongs to. Changing this forces a new resource.
+- `host` (String) Host is the hostname relative to the zone.
+- `record_type` (String) Type is one of the following: A, AAAA, ANAME, CNAME, MX, NS, SRV, or TXT. Changing this forces a new resource.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) Unique record id assigned by Name.com.
+- `record_id` (Number) Unique record id assigned by Name.com (numeric form of `id`).
 
 ## Import
 

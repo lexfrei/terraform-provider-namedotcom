@@ -3,6 +3,7 @@ package namedotcom
 // Schema attribute keys reused across the provider and resource definitions.
 // Kept here so goconst stays satisfied and renames stay cheap.
 const (
+	keyID                 = "id"
 	keyDomainName         = "domain_name"
 	keyHost               = "host"
 	keyRecordType         = "record_type"
@@ -19,3 +20,7 @@ const (
 	keyRateLimitPerHour   = "rate_limit_per_hour"
 	keyTimeout            = "timeout"
 )
+
+// descIDIsDomainName is the shared description for the computed id attribute of
+// resources whose identifier is the domain name.
+const descIDIsDomainName = "Resource identifier, equal to the domain name."

@@ -2,224 +2,209 @@ package namedotcom
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/cockroachdb/errors"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/namedotcom/go/v4/namecom"
 )
 
-// ErrValueOutsideInt32Range is returned when a value cannot be safely converted to int32.
-var ErrValueOutsideInt32Range = errors.New("value outside of int32 range")
+// Ensure the resource satisfies the required framework interfaces.
+var (
+	_ resource.Resource                = (*dnssecResource)(nil)
+	_ resource.ResourceWithConfigure   = (*dnssecResource)(nil)
+	_ resource.ResourceWithImportState = (*dnssecResource)(nil)
+)
 
-// validateIntForInt32 ensures an integer is within int32 range.
-func validateIntForInt32(value int, fieldName string) error {
-	if value > 2147483647 || value < -2147483648 {
-		return fmt.Errorf("%s: %w", fieldName, ErrValueOutsideInt32Range)
-	}
-
-	return nil
+// dnssecResource manages DNSSEC settings for a domain.
+type dnssecResource struct {
+	client *namecom.NameCom
 }
 
-// getDNSSECFromResourceData builds a DNSSEC struct from ResourceData.
-func getDNSSECFromResourceData(data *schema.ResourceData) (*namecom.DNSSEC, error) {
-	// Get and validate values
-	keyTagValue, isInt := data.Get(keyKeyTag).(int)
-	if !isInt {
-		return nil, errors.New("Error getting key_tag as int")
-	}
-
-	algorithmValue, isInt := data.Get(keyAlgorithm).(int)
-	if !isInt {
-		return nil, errors.New("Error getting algorithm as int")
-	}
-
-	digestTypeValue, isInt := data.Get(keyDigestType).(int)
-	if !isInt {
-		return nil, errors.New("Error getting digest_type as int")
-	}
-
-	// Validate int32 ranges
-	err := validateIntForInt32(keyTagValue, keyKeyTag)
-	if err != nil {
-		return nil, err
-	}
-
-	err = validateIntForInt32(algorithmValue, keyAlgorithm)
-	if err != nil {
-		return nil, err
-	}
-
-	err = validateIntForInt32(digestTypeValue, keyDigestType)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get string values
-	domainName, isStr := data.Get(keyDomainName).(string)
-	if !isStr {
-		return nil, errors.New("Error getting domain_name as string")
-	}
-
-	digest, isStr := data.Get(keyDigest).(string)
-	if !isStr {
-		return nil, errors.New("Error getting digest as string")
-	}
-
-	// Build the DNSSEC struct
-	//nolint:gosec // Safe to convert to int32 now (validated above)
-	keyTag32 := int32(keyTagValue)
-	//nolint:gosec // Safe to convert to int32 now (validated above)
-	algorithm32 := int32(algorithmValue)
-	//nolint:gosec // Safe to convert to int32 now (validated above)
-	digestType32 := int32(digestTypeValue)
-
-	return &namecom.DNSSEC{
-		DomainName: domainName,
-		KeyTag:     keyTag32,
-		Algorithm:  algorithm32,
-		DigestType: digestType32,
-		Digest:     digest,
-	}, nil
+// dnssecModel maps the DNSSEC schema to a Go struct.
+type dnssecModel struct {
+	ID         types.String `tfsdk:"id"`
+	DomainName types.String `tfsdk:"domain_name"`
+	KeyTag     types.Int32  `tfsdk:"key_tag"`
+	Algorithm  types.Int32  `tfsdk:"algorithm"`
+	DigestType types.Int32  `tfsdk:"digest_type"`
+	Digest     types.String `tfsdk:"digest"`
 }
 
-func resourceDNSSEC() *schema.Resource {
-	return &schema.Resource{
-		Create: resourceDNSSECCreate,
-		Read:   resourceDNSSECRead,
-		Delete: resourceDNSSECDelete,
-		Importer: &schema.ResourceImporter{
-			State: resourceDNSSECImporter,
-		},
+// NewDNSSECResource is the resource factory registered with the provider.
+//
+//nolint:ireturn // The framework contract requires returning the resource.Resource interface.
+func NewDNSSECResource() resource.Resource {
+	return &dnssecResource{}
+}
 
-		Schema: map[string]*schema.Schema{
-			keyDomainName: {
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
-				Description: "DomainName is the zone that the DNSSEC belongs to",
+func (r *dnssecResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_dnssec"
+}
+
+func (r *dnssecResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			keyID: schema.StringAttribute{
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Description:   descIDIsDomainName,
 			},
-			keyKeyTag: {
-				Type:        schema.TypeInt,
-				Required:    true,
-				ForceNew:    true,
-				Description: "KeyTag contains the key tag value of the DNSKEY RR that validates this signature.",
+			keyDomainName: schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{requiresReplaceOnDNSChange()},
+				Description:   "DomainName is the zone that the DNSSEC belongs to. Changing this forces a new resource.",
 			},
-			keyAlgorithm: {
-				Type:        schema.TypeInt,
-				Required:    true,
-				ForceNew:    true,
-				Description: "Algorithm is an integer identifying the algorithm used for signing. ",
+			keyKeyTag: schema.Int32Attribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.Int32{int32planmodifier.RequiresReplace()},
+				Description:   "KeyTag contains the key tag value of the DNSKEY RR that validates this signature. Changing this forces a new resource.",
 			},
-			keyDigestType: {
-				Type:        schema.TypeInt,
-				Required:    true,
-				ForceNew:    true,
-				Description: "DigestType is an integer identifying the algorithm used to create the digest.",
+			keyAlgorithm: schema.Int32Attribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.Int32{int32planmodifier.RequiresReplace()},
+				Description:   "Algorithm is an integer identifying the algorithm used for signing. Changing this forces a new resource.",
 			},
-			keyDigest: {
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
-				Description: "Digest is a digest of the DNSKEY RR that is registered with the registry.",
+			keyDigestType: schema.Int32Attribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.Int32{int32planmodifier.RequiresReplace()},
+				Description:   "DigestType is an integer identifying the algorithm used to create the digest. Changing this forces a new resource.",
+			},
+			keyDigest: schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{requiresReplaceOnDNSChange()},
+				Description:   "Digest is a digest of the DNSKEY RR that is registered with the registry. Changing this forces a new resource.",
 			},
 		},
 	}
 }
 
-// resourceDNSSECCreate creates a new DNSSEC in the Name.com API.
-func resourceDNSSECCreate(data *schema.ResourceData, meta any) error {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return errors.New("Error converting meta to Name.com client")
+func (r *dnssecResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	client, ok := configureClient(req.ProviderData, &resp.Diagnostics)
+	if !ok {
+		return
 	}
 
-	// Respect rate limits before making the API call
-	err := RespectRateLimits(context.Background())
-	if err != nil {
-		return errors.Wrap(err, "rate limiting error")
-	}
-
-	// Build the DNSSEC struct from resource data
-	dnssec, err := getDNSSECFromResourceData(data)
-	if err != nil {
-		return err
-	}
-
-	// Create the DNSSEC record
-	_, err = client.CreateDNSSEC(dnssec)
-	if err != nil {
-		return errors.Wrap(err, "Error CreateDNSSEC")
-	}
-
-	data.SetId(dnssec.DomainName)
-
-	return resourceDNSSECRead(data, meta)
+	r.client = client
 }
 
-// resourceDNSSECImporter import existing DNSSEC from the Name.com API.
-func resourceDNSSECImporter(data *schema.ResourceData, meta any) ([]*schema.ResourceData, error) {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return nil, errors.New("Error getting client")
+func (r *dnssecResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan dnssecModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Respect rate limits before making the API call
-	err := RespectRateLimits(context.Background())
+	err := createDNSSECAPI(
+		ctx, r.client,
+		plan.DomainName.ValueString(),
+		plan.KeyTag.ValueInt32(),
+		plan.Algorithm.ValueInt32(),
+		plan.DigestType.ValueInt32(),
+		plan.Digest.ValueString(),
+	)
 	if err != nil {
-		return nil, errors.Wrap(err, "rate limiting error")
+		resp.Diagnostics.AddError("Error creating DNSSEC", err.Error())
+
+		return
 	}
 
-	importDomainName, importDigest, err := resourceDNSSECImporterParseID(data.Id())
-	if err != nil {
-		return nil, err
-	}
+	plan.ID = plan.DomainName
 
-	request := namecom.GetDNSSECRequest{
-		DomainName: importDomainName,
-		Digest:     importDigest,
-	}
-
-	DNSSEC, err := client.GetDNSSEC(&request)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error GetDNSSECRequest")
-	}
-
-	err = data.Set(keyDomainName, DNSSEC.DomainName)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error setting domain_name")
-	}
-
-	err = data.Set(keyKeyTag, int(DNSSEC.KeyTag))
-	if err != nil {
-		return nil, errors.Wrap(err, "Error setting key_tag")
-	}
-
-	err = data.Set(keyAlgorithm, int(DNSSEC.Algorithm))
-	if err != nil {
-		return nil, errors.Wrap(err, "Error setting algorithm")
-	}
-
-	err = data.Set(keyDigestType, int(DNSSEC.DigestType))
-	if err != nil {
-		return nil, errors.Wrap(err, "Error setting digest_type")
-	}
-
-	err = data.Set(keyDigest, DNSSEC.Digest)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error setting digest")
-	}
-
-	data.SetId(importDomainName)
-
-	return []*schema.ResourceData{data}, nil
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-// resourceDNSSECImporterParseID parses the ID of the DNSSEC.
-// Format: DomainName_Digest. Splits at the last underscore to handle
-// domain names that may contain underscores.
+func (r *dnssecResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state dnssecModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	dnssec, err := readDNSSECAPI(ctx, r.client, state.DomainName.ValueString(), state.Digest.ValueString())
+	if err != nil {
+		// The DNSSEC key was removed outside Terraform: drop it from state so
+		// the next plan recreates it instead of failing.
+		if isNotFoundError(err) {
+			resp.State.RemoveResource(ctx)
+
+			return
+		}
+
+		resp.Diagnostics.AddError("Error reading DNSSEC", err.Error())
+
+		return
+	}
+
+	// domain_name and digest are the immutable lookup keys (RequiresReplace) and
+	// were used to query the API, so the stored values are kept rather than
+	// adopted from the response — a canonicalization difference (e.g. digest
+	// case) must not force a spurious replacement on refresh. Only the numeric
+	// fields are refreshed; they are populated from the API on import.
+	state.ID = state.DomainName
+	state.KeyTag = types.Int32Value(dnssec.KeyTag)
+	state.Algorithm = types.Int32Value(dnssec.Algorithm)
+	state.DigestType = types.Int32Value(dnssec.DigestType)
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+// Update is required by the resource.Resource interface but is never reached:
+// every attribute forces replacement, so the framework destroys and recreates
+// instead of updating in place. It simply round-trips the plan into state.
+func (r *dnssecResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan dnssecModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+func (r *dnssecResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state dnssecModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	err := deleteDNSSECAPI(ctx, r.client, state.DomainName.ValueString(), state.Digest.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Error deleting DNSSEC", err.Error())
+
+		return
+	}
+}
+
+// ImportState parses a "DomainName_Digest" identifier, seeding the domain_name
+// and digest so the subsequent Read can populate the remaining attributes.
+func (r *dnssecResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	domainName, digest, err := resourceDNSSECImporterParseID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(keyDomainName), domainName)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(keyDigest), digest)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(keyID), domainName)...)
+}
+
+// resourceDNSSECImporterParseID parses an import identifier of the form
+// "DomainName_Digest". It splits at the last underscore so that domain names
+// containing underscores are handled correctly.
 func resourceDNSSECImporterParseID(importID string) (domainName, digest string, err error) {
 	idx := strings.LastIndex(importID, "_")
 	if idx <= 0 || idx == len(importID)-1 {
@@ -229,126 +214,65 @@ func resourceDNSSECImporterParseID(importID string) (domainName, digest string, 
 	return importID[:idx], importID[idx+1:], nil
 }
 
-// resourceDNSSECRead reads a DNSSEC from the Name.com API.
-func resourceDNSSECRead(data *schema.ResourceData, meta any) error {
-	client, err := validateClient(meta)
-	if err != nil {
-		return err
-	}
-
-	// Respect rate limits before making the API call
-	err = RespectRateLimits(context.Background())
+// createDNSSECAPI registers a DNSSEC key via the Name.com API.
+func createDNSSECAPI(
+	ctx context.Context,
+	client *namecom.NameCom,
+	domainName string,
+	keyTag, algorithm, digestType int32,
+	digest string,
+) error {
+	err := RespectRateLimits(ctx)
 	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
-	domainName, digest, err := extractDNSSECParams(data)
-	if err != nil {
-		return err
-	}
-
-	dnssecData, err := fetchDNSSECData(client, domainName, digest)
-	if err != nil {
-		return err
-	}
-
-	return setDNSSECAttributes(data, dnssecData)
-}
-
-// validateClient validates the client interface.
-func validateClient(meta any) (*namecom.NameCom, error) {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return nil, errors.New("Error getting client")
-	}
-
-	return client, nil
-}
-
-// extractDNSSECParams extracts domain name and digest from resource data.
-func extractDNSSECParams(data *schema.ResourceData) (domainName, digest string, err error) {
-	domainNameString, isStr := data.Get(keyDomainName).(string)
-	if !isStr {
-		return "", "", errors.New("Error getting domain_name")
-	}
-
-	digestString, isStr := data.Get(keyDigest).(string)
-	if !isStr {
-		return "", "", errors.New("Error getting digest")
-	}
-
-	return domainNameString, digestString, nil
-}
-
-// fetchDNSSECData retrieves DNSSEC data from the API.
-func fetchDNSSECData(client *namecom.NameCom, domainName, digest string) (*namecom.DNSSEC, error) {
-	request := namecom.GetDNSSECRequest{
+	_, err = client.CreateDNSSEC(&namecom.DNSSEC{
 		DomainName: domainName,
+		KeyTag:     keyTag,
+		Algorithm:  algorithm,
+		DigestType: digestType,
 		Digest:     digest,
-	}
-
-	dnssec, err := client.GetDNSSEC(&request)
+	})
 	if err != nil {
-		return nil, errors.Wrap(err, "Error GetDNSSECRequest")
-	}
-
-	return dnssec, nil
-}
-
-// setDNSSECAttributes sets all DNSSEC attributes in the resource data.
-func setDNSSECAttributes(data *schema.ResourceData, dnssec *namecom.DNSSEC) error {
-	attributes := map[string]any{
-		keyDomainName: dnssec.DomainName,
-		keyKeyTag:     int(dnssec.KeyTag),
-		keyAlgorithm:  int(dnssec.Algorithm),
-		keyDigestType: int(dnssec.DigestType),
-		keyDigest:     dnssec.Digest,
-	}
-
-	for key, value := range attributes {
-		err := data.Set(key, value)
-		if err != nil {
-			return errors.Wrapf(err, "Error setting %s", key)
-		}
+		return errors.Wrap(err, "Error CreateDNSSEC")
 	}
 
 	return nil
 }
 
-// resourceDNSSECDelete deletes a DNSSEC from the Name.com API.
-func resourceDNSSECDelete(data *schema.ResourceData, meta any) error {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return errors.New("Error getting client")
+// readDNSSECAPI fetches a DNSSEC key via the Name.com API.
+func readDNSSECAPI(ctx context.Context, client *namecom.NameCom, domainName, digest string) (*namecom.DNSSEC, error) {
+	err := RespectRateLimits(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "rate limiting error")
 	}
 
-	// Respect rate limits before making the API call
-	err := RespectRateLimits(context.Background())
+	dnssec, err := client.GetDNSSEC(&namecom.GetDNSSECRequest{
+		DomainName: domainName,
+		Digest:     digest,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error GetDNSSEC")
+	}
+
+	return dnssec, nil
+}
+
+// deleteDNSSECAPI removes a DNSSEC key via the Name.com API.
+func deleteDNSSECAPI(ctx context.Context, client *namecom.NameCom, domainName, digest string) error {
+	err := RespectRateLimits(ctx)
 	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
-	domainNameString, isStr := data.Get(keyDomainName).(string)
-	if !isStr {
-		return errors.New("Error getting domain_name")
-	}
-
-	digestString, isStr := data.Get(keyDigest).(string)
-	if !isStr {
-		return errors.New("Error getting digest")
-	}
-
-	deleteRequest := namecom.DeleteDNSSECRequest{
-		DomainName: domainNameString,
-		Digest:     digestString,
-	}
-
-	_, err = client.DeleteDNSSEC(&deleteRequest)
+	_, err = client.DeleteDNSSEC(&namecom.DeleteDNSSECRequest{
+		DomainName: domainName,
+		Digest:     digest,
+	})
 	if err != nil {
 		return errors.Wrap(err, "Error DeleteDNSSEC")
 	}
-
-	data.SetId("")
 
 	return nil
 }

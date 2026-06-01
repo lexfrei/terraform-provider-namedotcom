@@ -6,120 +6,242 @@ import (
 	"strings"
 
 	"github.com/cockroachdb/errors"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/namedotcom/go/v4/namecom"
 )
 
-func resourceRecord() *schema.Resource {
-	return &schema.Resource{
-		Create: resourceRecordCreate,
-		Read:   resourceRecordRead,
-		Update: resourceRecordUpdate,
-		Delete: resourceRecordDelete,
-		Importer: &schema.ResourceImporter{
-			State: resourceRecordImporter,
+// Ensure the resource satisfies the required framework interfaces.
+var (
+	_ resource.Resource                = (*recordResource)(nil)
+	_ resource.ResourceWithConfigure   = (*recordResource)(nil)
+	_ resource.ResourceWithImportState = (*recordResource)(nil)
+)
+
+// recordResource manages a single Name.com DNS record.
+type recordResource struct {
+	client *namecom.NameCom
+}
+
+// recordModel maps the record schema to a Go struct.
+type recordModel struct {
+	ID         types.String `tfsdk:"id"`
+	RecordID   types.Int32  `tfsdk:"record_id"`
+	DomainName types.String `tfsdk:"domain_name"`
+	Host       types.String `tfsdk:"host"`
+	RecordType types.String `tfsdk:"record_type"`
+	Answer     types.String `tfsdk:"answer"`
+}
+
+// NewRecordResource is the resource factory registered with the provider.
+//
+//nolint:ireturn // The framework contract requires returning the resource.Resource interface.
+func NewRecordResource() resource.Resource {
+	return &recordResource{}
+}
+
+func (r *recordResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_record"
+}
+
+func (r *recordResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			keyID: schema.StringAttribute{
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Description:   "Unique record id assigned by Name.com.",
+			},
+			keyRecordID: schema.Int32Attribute{
+				Computed:      true,
+				PlanModifiers: []planmodifier.Int32{int32planmodifier.UseStateForUnknown()},
+				Description:   "Unique record id assigned by Name.com (numeric form of `id`).",
+			},
+			keyDomainName: schema.StringAttribute{
+				Optional:      true,
+				PlanModifiers: []planmodifier.String{requiresReplaceOnDNSChange()},
+				Description:   "DomainName is the zone that the record belongs to. Changing this forces a new resource.",
+			},
+			keyHost: schema.StringAttribute{
+				Optional:    true,
+				Description: "Host is the hostname relative to the zone.",
+			},
+			keyRecordType: schema.StringAttribute{
+				Optional:      true,
+				PlanModifiers: []planmodifier.String{requiresReplaceOnDNSChange()},
+				Description:   "Type is one of the following: A, AAAA, ANAME, CNAME, MX, NS, SRV, or TXT. Changing this forces a new resource.",
+			},
+			keyAnswer: schema.StringAttribute{
+				Optional: true,
+				//nolint:lll // One sentence covering every supported record type.
+				Description: "Answer is the record value: the IP address for A and AAAA records, the target for ANAME, CNAME, MX, NS, and SRV records, or the text for TXT records.",
+			},
 		},
-
-		Schema: map[string]*schema.Schema{
-			keyRecordID: {
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Description: "Unique record id. Value is ignored on Create, and must match the URI on Update.",
-			},
-			keyDomainName: {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "DomainName is the zone that the record belongs to",
-			},
-			keyHost: {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Host is the hostname relative to the zone",
-			},
-			keyRecordType: {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Type is one of the following: A, AAAA, ANAME, CNAME, MX, NS, SRV, or TXT",
-			},
-			keyAnswer: {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Answer is either the IP address for A or AAAA records",
-			},
-		},
 	}
 }
 
-// resourceRecordCreate creates a new record in the Name.com API.
-func resourceRecordCreate(data *schema.ResourceData, meta any) error {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return errors.New("Error converting meta to Name.com client")
+func (r *recordResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	client, ok := configureClient(req.ProviderData, &resp.Diagnostics)
+	if !ok {
+		return
 	}
 
-	// Respect rate limits before making the API call
-	err := RespectRateLimits(context.Background())
-	if err != nil {
-		return errors.Wrap(err, "rate limiting error")
-	}
-
-	domainName, isStr := data.Get(keyDomainName).(string)
-	if !isStr {
-		return errors.New("Error getting domain_name as string")
-	}
-
-	host, isStr := data.Get(keyHost).(string)
-	if !isStr {
-		return errors.New("Error getting host as string")
-	}
-
-	recordType, isStr := data.Get(keyRecordType).(string)
-	if !isStr {
-		return errors.New("Error getting record_type as string")
-	}
-
-	answer, isStr := data.Get(keyAnswer).(string)
-	if !isStr {
-		return errors.New("Error getting answer as string")
-	}
-
-	record := &namecom.Record{
-		DomainName: domainName,
-		Host:       host,
-		Type:       recordType,
-		Answer:     answer,
-	}
-
-	// Create the record
-	resp, err := client.CreateRecord(record)
-	if err != nil {
-		return errors.Wrap(err, "Error CreateRecord")
-	}
-
-	data.SetId(strconv.Itoa(int(resp.ID)))
-
-	return resourceRecordRead(data, meta)
+	r.client = client
 }
 
-// resourceRecordImporter import existing record from the Name.com API.
-func resourceRecordImporter(data *schema.ResourceData, _ any) ([]*schema.ResourceData, error) {
-	// data.Id() is the last argument passed to terraform import, in format domain:id
-	importDomainName, importID, err := resourceRecordImporterParseID(data.Id())
-	if err != nil {
-		return nil, err
+func (r *recordResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan recordModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	err = data.Set(keyDomainName, importDomainName)
+	record, err := createRecordAPI(
+		ctx, r.client,
+		plan.DomainName.ValueString(),
+		plan.Host.ValueString(),
+		plan.RecordType.ValueString(),
+		plan.Answer.ValueString(),
+	)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error setting domain_name")
+		resp.Diagnostics.AddError("Error creating record", err.Error())
+
+		return
 	}
 
-	data.SetId(importID)
+	state := recordCreateState(plan, record)
 
-	return []*schema.ResourceData{data}, nil
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
+func (r *recordResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state recordModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	recordID, err := parseRecordID(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid record ID in state", err.Error())
+
+		return
+	}
+
+	record, err := readRecordAPI(ctx, r.client, state.DomainName.ValueString(), recordID)
+	if err != nil {
+		// The record was deleted outside Terraform: drop it from state so the
+		// next plan recreates it instead of failing.
+		if isNotFoundError(err) {
+			resp.State.RemoveResource(ctx)
+
+			return
+		}
+
+		resp.Diagnostics.AddError("Error reading record", err.Error())
+
+		return
+	}
+
+	refreshed := recordReadState(state, record)
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &refreshed)...)
+}
+
+func (r *recordResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan recordModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state recordModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	recordID, err := parseRecordID(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid record ID in state", err.Error())
+
+		return
+	}
+
+	record, err := updateRecordAPI(
+		ctx, r.client, recordID,
+		plan.DomainName.ValueString(),
+		plan.Host.ValueString(),
+		plan.RecordType.ValueString(),
+		plan.Answer.ValueString(),
+	)
+	if err != nil {
+		// The record was deleted outside Terraform between plan and apply: drop
+		// it from state so the next plan recreates it, matching the Read path.
+		if isNotFoundError(err) {
+			resp.State.RemoveResource(ctx)
+
+			return
+		}
+
+		resp.Diagnostics.AddError("Error updating record", err.Error())
+
+		return
+	}
+
+	updated := recordCreateState(plan, record)
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &updated)...)
+}
+
+func (r *recordResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state recordModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	recordID, err := parseRecordID(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid record ID in state", err.Error())
+
+		return
+	}
+
+	err = deleteRecordAPI(ctx, r.client, state.DomainName.ValueString(), recordID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error deleting record", err.Error())
+
+		return
+	}
+}
+
+// ImportState parses a "domain:id" identifier, seeding domain_name and id so
+// the subsequent Read can refresh the remaining attributes.
+func (r *recordResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	domainName, recordID, err := resourceRecordImporterParseID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(keyDomainName), domainName)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(keyID), recordID)...)
+}
+
+// resourceRecordImporterParseID splits an import identifier of the form
+// "domain:id" into its two parts.
 func resourceRecordImporterParseID(id string) (domain, recordID string, err error) {
 	// Split the ID into two parts, the domain and the record ID.
 	//nolint:mnd // 2 is the expected number of parts
@@ -133,150 +255,190 @@ func resourceRecordImporterParseID(id string) (domain, recordID string, err erro
 	return parts[0], parts[1], nil
 }
 
-// resourceRecordRead reads a record from the Name.com API.
-func resourceRecordRead(data *schema.ResourceData, meta any) error {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return errors.New("Error converting meta to Name.com client")
-	}
-
-	// Respect rate limits before making the API call
-	err := RespectRateLimits(context.Background())
+// parseRecordID converts the string resource ID into the int32 the API expects.
+func parseRecordID(id string) (int32, error) {
+	parsed, err := strconv.ParseInt(id, 10, 32)
 	if err != nil {
-		return errors.Wrap(err, "rate limiting error")
+		return 0, errors.Wrap(err, "error converting record ID")
 	}
 
-	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
-	if err != nil {
-		return errors.Wrap(err, "error converting Record ID")
-	}
-
-	domainString, isStr := data.Get(keyDomainName).(string)
-	if !isStr {
-		return errors.New("Error getting domain_name")
-	}
-
-	request := namecom.GetRecordRequest{
-		DomainName: domainString,
-		ID:         int32(recordID),
-	}
-
-	record, err := client.GetRecord(&request)
-	if err != nil {
-		return errors.Wrap(err, "Error GetRecord")
-	}
-
-	err = data.Set(keyDomainName, record.DomainName)
-	if err != nil {
-		return errors.Wrap(err, "Error setting domain_name")
-	}
-
-	err = data.Set(keyHost, record.Host)
-	if err != nil {
-		return errors.Wrap(err, "Error setting host")
-	}
-
-	err = data.Set(keyRecordType, record.Type)
-	if err != nil {
-		return errors.Wrap(err, "Error setting record_type")
-	}
-
-	err = data.Set(keyAnswer, record.Answer)
-	if err != nil {
-		return errors.Wrap(err, "Error setting answer")
-	}
-
-	return nil
+	return int32(parsed), nil
 }
 
-// resourceRecordUpdate updates a record in the Name.com API.
-func resourceRecordUpdate(data *schema.ResourceData, meta any) error {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return errors.New("Error converting meta to Name.com client")
-	}
+// recordCreateState builds the state to persist after a Create or Update.
+// The user-controlled attributes are echoed from the plan: unlike SDKv2, the
+// framework does not enable the legacy type-system leniency, so writing the
+// API's canonical form into a non-computed attribute that differs from the
+// configured value would fail Terraform's "inconsistent result after apply"
+// check. Only the server-assigned identifiers are taken from the API response.
+func recordCreateState(plan recordModel, record *namecom.Record) recordModel {
+	plan.ID = types.StringValue(strconv.Itoa(int(record.ID)))
+	plan.RecordID = types.Int32Value(record.ID)
 
-	// Respect rate limits before making the API call
-	err := RespectRateLimits(context.Background())
-	if err != nil {
-		return errors.Wrap(err, "rate limiting error")
-	}
-
-	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
-	if err != nil {
-		return errors.Wrap(err, "error converting Record ID")
-	}
-
-	domainNameString, isStr := data.Get(keyDomainName).(string)
-	if !isStr {
-		return errors.New("Error getting domain_name")
-	}
-
-	hostString, isStr := data.Get("host").(string)
-	if !isStr {
-		return errors.New("Error getting host")
-	}
-
-	recordTypeString, isStr := data.Get("record_type").(string)
-	if !isStr {
-		return errors.New("Error getting record_type")
-	}
-
-	answerString, isStr := data.Get("answer").(string)
-	if !isStr {
-		return errors.New("Error getting answer")
-	}
-
-	updatedRecord := namecom.Record{
-		ID:         int32(recordID),
-		DomainName: domainNameString,
-		Host:       hostString,
-		Type:       recordTypeString,
-		Answer:     answerString,
-	}
-
-	_, err = client.UpdateRecord(&updatedRecord)
-	if err != nil {
-		return errors.Wrap(err, "Error UpdateRecord")
-	}
-
-	return resourceRecordRead(data, meta)
+	return plan
 }
 
-// resourceRecordDelete deletes a record from the Name.com API.
-func resourceRecordDelete(data *schema.ResourceData, meta any) error {
-	client, isNamecom := meta.(*namecom.NameCom)
-	if !isNamecom {
-		return errors.New("Error converting meta to Name.com client")
+// recordReadState refreshes the state from the API record. For the
+// user-controlled attributes it keeps the representation already in state when
+// that is semantically equal to the API value, so Name.com's canonicalization
+// (upper-cased type, trailing-dot answer) does not surface as perpetual drift.
+// A genuinely different value — or an empty one during import — is adopted from
+// the API so real drift is still detected.
+func recordReadState(state recordModel, record *namecom.Record) recordModel {
+	state.ID = types.StringValue(strconv.Itoa(int(record.ID)))
+	state.RecordID = types.Int32Value(record.ID)
+	// domain_name is the resource key and carries RequiresReplace; GetRecord was
+	// queried by it, so the returned domain always matches. It is deliberately
+	// not adopted from the API response, so a punycode/case difference can never
+	// trigger a spurious replacement on refresh.
+	state.Host = reconcileHostValue(state.Host, record.Host)
+	state.RecordType = reconcileDNSValue(state.RecordType, record.Type)
+	state.Answer = reconcileDNSValue(state.Answer, record.Answer)
+
+	return state
+}
+
+// reconcileDNSValue keeps the prior state value when it is semantically equal
+// to the API value (DNS names are case-insensitive and a trailing dot is not
+// significant); otherwise it adopts the API value.
+func reconcileDNSValue(prior types.String, apiValue string) types.String {
+	if !prior.IsNull() && dnsEqual(prior.ValueString(), apiValue) {
+		return prior
 	}
 
-	// Respect rate limits before making the API call
-	err := RespectRateLimits(context.Background())
+	return types.StringValue(apiValue)
+}
+
+// reconcileHostValue is reconcileDNSValue for the host attribute, additionally
+// treating the apex forms "@" and "" as equivalent.
+func reconcileHostValue(prior types.String, apiValue string) types.String {
+	if !prior.IsNull() && hostEqual(prior.ValueString(), apiValue) {
+		return prior
+	}
+
+	return types.StringValue(apiValue)
+}
+
+func dnsEqual(a, b string) bool {
+	return strings.EqualFold(strings.TrimSuffix(a, "."), strings.TrimSuffix(b, "."))
+}
+
+func hostEqual(a, b string) bool {
+	return strings.EqualFold(normalizeHost(a), normalizeHost(b))
+}
+
+// normalizeHost treats the apex host "@" as the empty host.
+func normalizeHost(host string) string {
+	if host == "@" {
+		return ""
+	}
+
+	return host
+}
+
+// dnsReplaceDescription documents the semantic RequiresReplace behaviour.
+const dnsReplaceDescription = "Changing this to a different value forces a new resource; " +
+	"differences that are only DNS canonicalization (letter case or a trailing dot) do not."
+
+// requiresReplaceOnDNSChange forces replacement only when the attribute changes
+// semantically. A difference that is purely DNS canonicalization (letter case
+// or a trailing dot) does not trigger replacement, so upgrading from state
+// written by the SDKv2 provider — which stored the API's canonical form — does
+// not destroy and recreate resources over a cosmetic mismatch.
+//
+//nolint:ireturn // The framework schema requires a planmodifier.String value.
+func requiresReplaceOnDNSChange() planmodifier.String {
+	return stringplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !dnsEqual(req.StateValue.ValueString(), req.PlanValue.ValueString())
+		},
+		dnsReplaceDescription,
+		dnsReplaceDescription,
+	)
+}
+
+// createRecordAPI creates a record via the Name.com API.
+func createRecordAPI(
+	ctx context.Context,
+	client *namecom.NameCom,
+	domainName, host, recordType, answer string,
+) (*namecom.Record, error) {
+	err := RespectRateLimits(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "rate limiting error")
+	}
+
+	record, err := client.CreateRecord(&namecom.Record{
+		DomainName: domainName,
+		Host:       host,
+		Type:       recordType,
+		Answer:     answer,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error CreateRecord")
+	}
+
+	return record, nil
+}
+
+// readRecordAPI fetches a record via the Name.com API.
+func readRecordAPI(ctx context.Context, client *namecom.NameCom, domainName string, recordID int32) (*namecom.Record, error) {
+	err := RespectRateLimits(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "rate limiting error")
+	}
+
+	record, err := client.GetRecord(&namecom.GetRecordRequest{
+		DomainName: domainName,
+		ID:         recordID,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error GetRecord")
+	}
+
+	return record, nil
+}
+
+// updateRecordAPI updates a record via the Name.com API.
+func updateRecordAPI(
+	ctx context.Context,
+	client *namecom.NameCom,
+	recordID int32,
+	domainName, host, recordType, answer string,
+) (*namecom.Record, error) {
+	err := RespectRateLimits(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "rate limiting error")
+	}
+
+	record, err := client.UpdateRecord(&namecom.Record{
+		ID:         recordID,
+		DomainName: domainName,
+		Host:       host,
+		Type:       recordType,
+		Answer:     answer,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error UpdateRecord")
+	}
+
+	return record, nil
+}
+
+// deleteRecordAPI deletes a record via the Name.com API.
+func deleteRecordAPI(ctx context.Context, client *namecom.NameCom, domainName string, recordID int32) error {
+	err := RespectRateLimits(ctx)
 	if err != nil {
 		return errors.Wrap(err, "rate limiting error")
 	}
 
-	recordID, err := strconv.ParseInt(data.Id(), 10, 32)
-	if err != nil {
-		return errors.Wrap(err, "error converting Record ID")
-	}
-
-	domainNameString, isStr := data.Get(keyDomainName).(string)
-	if !isStr {
-		return errors.New("Error getting domain_name")
-	}
-
-	deleteRequest := namecom.DeleteRecordRequest{
-		DomainName: domainNameString,
-		ID:         int32(recordID),
-	}
-
-	_, err = client.DeleteRecord(&deleteRequest)
+	_, err = client.DeleteRecord(&namecom.DeleteRecordRequest{
+		DomainName: domainName,
+		ID:         recordID,
+	})
 	if err != nil {
 		return errors.Wrap(err, "Error DeleteRecord")
 	}
-
-	data.SetId("")
 
 	return nil
 }
