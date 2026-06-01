@@ -3,9 +3,6 @@ package namedotcom_test
 import (
 	"testing"
 
-	"github.com/cockroachdb/errors"
-	"github.com/namedotcom/go/v4/namecom"
-
 	namedotcom "github.com/lexfrei/terraform-provider-namedotcom/namedotcom"
 )
 
@@ -85,74 +82,31 @@ func TestResourceDNSSECImporterParseID(t *testing.T) {
 	}, namedotcom.ResourceDNSSECImporterParseID)
 }
 
-func TestValidateIntForInt32(t *testing.T) {
+func TestParseRecordID(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		value   int
+		input   string
+		want    int32
 		wantErr bool
 	}{
-		{name: "zero", value: 0},
-		{name: "positive", value: 1},
-		{name: "negative", value: -1},
-		{name: "max int32", value: 2147483647},
-		{name: "min int32", value: -2147483648},
-		{name: "overflow positive", value: 2147483648, wantErr: true},
-		{name: "overflow negative", value: -2147483649, wantErr: true},
+		{name: "valid", input: "42", want: 42},
+		{name: "zero", input: "0", want: 0},
+		{name: "not a number", input: "abc", wantErr: true},
+		{name: "empty", input: "", wantErr: true},
+		{name: "overflow int32", input: "2147483648", wantErr: true},
 	}
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := namedotcom.ValidateIntForInt32(testCase.value, "test_field")
+			got, err := namedotcom.ParseRecordID(testCase.input)
 
 			if testCase.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
-				}
-
-				if !errors.Is(err, namedotcom.ErrValueOutsideInt32Range) {
-					t.Errorf("expected ErrValueOutsideInt32Range, got: %v", err)
-				}
-
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-		})
-	}
-}
-
-func TestValidateClient(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		meta    any
-		wantErr bool
-	}{
-		{name: "valid namecom client", meta: &namecom.NameCom{}, wantErr: false},
-		{name: "invalid type string", meta: "not a client", wantErr: true},
-		{name: "nil value", meta: nil, wantErr: true},
-	}
-
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			client, err := namedotcom.ValidateClient(testCase.meta)
-
-			if testCase.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-
-				if client != nil {
-					t.Error("expected nil client on error")
 				}
 
 				return
@@ -162,8 +116,8 @@ func TestValidateClient(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if client == nil {
-				t.Fatal("expected non-nil client")
+			if got != testCase.want {
+				t.Errorf("ParseRecordID(%q) = %d, want %d", testCase.input, got, testCase.want)
 			}
 		})
 	}

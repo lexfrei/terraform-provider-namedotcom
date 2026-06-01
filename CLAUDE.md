@@ -8,13 +8,13 @@ This is a Terraform provider for Name.com DNS and domain management. The provide
 
 **Key Architecture:**
 
-- Built using Terraform Plugin SDK v2 with modern patterns
+- Built using the Terraform Plugin Framework (serves protocol 6; requires Terraform >= 1.0 / OpenTofu)
 - Uses Name.com Go SDK v4 for API interactions
 - Implements built-in rate limiting (20 req/sec, 3000 req/hour)
-- Provider entry point: `main.go` with actual implementation in `namedotcom/` package
-- Uses Go 1.24+ with modern language features
-- Implements context-aware provider configuration with `ConfigureContextFunc`
-- Uses `diag.Diagnostics` for improved error reporting
+- Provider entry point: `main.go` (served via `providerserver.Serve`), implementation in `namedotcom/` package
+- Uses Go 1.26+ with modern language features
+- Each resource is a struct implementing `resource.Resource`; API translation lives in unit-testable helper functions
+- Uses `diag.Diagnostics` for rich error reporting
 
 ## Development Commands
 
@@ -60,7 +60,7 @@ act -j lint-markdown
 
 ### Core Files
 
-- `main.go`: Provider entry point using Terraform Plugin SDK
+- `main.go`: Provider entry point using `providerserver.Serve` (Terraform Plugin Framework)
 - `namedotcom/provider.go`: Provider schema and configuration
 - `namedotcom/ratelimit.go`: API rate limiting implementation
 - `namedotcom/resource_*.go`: Individual resource implementations
@@ -83,7 +83,7 @@ The provider requires Name.com API credentials:
 **Version Management:**
 
 - Follows semantic versioning
-- Current version: 2.2.2
+- The Plugin Framework migration (protocol 5 -> 6) ships as the v4.0.0 major release
 - Release notes generated automatically from commit messages
 
 **GoReleaser Configuration:**
@@ -187,28 +187,35 @@ act -j codeql-analyze
 
 ### Terraform Provider Testing Best Practices
 
-- Test schema definitions and validation
-- Verify CRUD operations exist and are properly configured
+- Test schema definitions and validation via `resource.Schema()` / `provider.Schema()` introspection
+- Keep API-translation logic in helper functions so it is unit-testable against an `httptest` mock without `TF_ACC`
+- Reuse `namecom.Mock(user, token, server.URL)` to point the client at the mock server
 - Check import functionality
 - Test error handling and edge cases
-- Use `schema.TestResourceDataRaw()` for provider configuration tests
 
-## Modern Go and Terraform SDK Patterns
+## Modern Go and Terraform Framework Patterns
 
 ### Provider Configuration
 
-The provider uses modern Terraform Plugin SDK v2 patterns:
+The provider uses Terraform Plugin Framework patterns:
 
-- **ConfigureContextFunc**: Context-aware configuration instead of deprecated `ConfigureFunc`
+- **provider.Provider**: `Metadata` / `Schema` / `Configure` / `Resources` / `DataSources`; constructed via `New(version)`
+- **Environment fallback**: `username`/`token` are optional in the schema and fall back to `NAMEDOTCOM_*` env vars in `Configure` (the framework has no `EnvDefaultFunc`)
 - **diag.Diagnostics**: Rich error reporting with severity levels and detailed messages
-- **Context propagation**: Proper context handling throughout the provider lifecycle
+- **Context propagation**: The operation context flows into `RespectRateLimits(ctx)` so rate-limit waits are cancellable
+
+### Resource patterns
+
+- Each resource is a struct implementing `resource.Resource` (+ `ResourceWithConfigure`, and `ResourceWithImportState` / `ResourceWithUpgradeState` where needed)
+- CRUD methods are thin wrappers: `req.Plan.Get` -> API helper -> `resp.State.Set`
+- SDKv2 `ForceNew` becomes a `RequiresReplace()` plan modifier; `data.SetId("")` drift handling becomes `resp.State.RemoveResource(ctx)`
+- `namedotcom_domain_nameservers` declares `Version: 1` and an `UpgradeState` v0 -> v1 (list -> set) to stay compatible with state written by the SDKv2 provider
 
 ### Go Language Features
 
-Current implementation uses Go 1.24+ features:
+Current implementation uses Go 1.26+ features:
 
 - **Range over integers**: `for range numGoroutines` syntax
-- **Context-aware APIs**: All API calls support context cancellation
 - **Error wrapping**: Using `errors.New()` and proper error chains
 - **Type assertions**: Safe type checking with comma ok idiom
 
@@ -223,7 +230,7 @@ The `.golangci.yaml` configuration follows modern Go practices:
 
 ### Dependencies Management
 
-- **Go modules**: Using `go.mod` with Go 1.24+ requirement
-- **Toolchain specification**: Explicit `toolchain go1.25.1` declaration
+- **Go modules**: Using `go.mod` with Go 1.26+ requirement
+- **Toolchain specification**: Explicit `toolchain go1.26.3` declaration
 - **Version pinning**: Direct and indirect dependencies properly managed
 - **Vulnerability scanning**: Automated dependency security checks

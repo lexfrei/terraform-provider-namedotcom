@@ -2,6 +2,7 @@
 package namedotcom_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/errors"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/namedotcom/go/v4/namecom"
 
 	namedotcom "github.com/lexfrei/terraform-provider-namedotcom/namedotcom"
@@ -47,13 +48,23 @@ func initLimiters(t *testing.T) {
 	})
 }
 
-// Record CRUD tests.
+func newErrorMock(t *testing.T, pattern string) *namecom.NameCom {
+	t.Helper()
 
-func TestResourceRecordCreate_Success(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc(pattern, func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, `{"message":"server error"}`, http.StatusInternalServerError)
+	})
+
+	return newMockClient(t, mux)
+}
+
+// Record API helper tests.
+
+func TestCreateRecordAPI_Success(t *testing.T) {
 	initLimiters(t)
 
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("/v4/domains/example.com/records", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
@@ -65,31 +76,34 @@ func TestResourceRecordCreate_Success(t *testing.T) {
 		fmt.Fprintf(writer, `{"id":42,"domainName":"example.com","host":"test","type":"A","answer":"1.2.3.4"}`)
 	})
 
-	mux.HandleFunc("/v4/domains/example.com/records/42", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{"id":42,"domainName":"example.com","host":"test","type":"A","answer":"1.2.3.4"}`)
-	})
-
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "1.2.3.4",
-	})
-
-	err := namedotcom.ResourceRecordCreate(data, client)
+	record, err := namedotcom.CreateRecordAPI(context.Background(), client, testDomain, "test", "A", "1.2.3.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if data.Id() != "42" {
-		t.Errorf("ID = %q, want %q", data.Id(), "42")
+	if record.ID != 42 {
+		t.Errorf("ID = %d, want 42", record.ID)
+	}
+
+	if record.Answer != "1.2.3.4" {
+		t.Errorf("Answer = %q, want %q", record.Answer, "1.2.3.4")
 	}
 }
 
-func TestResourceRecordRead_Success(t *testing.T) {
+func TestCreateRecordAPI_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com/records")
+
+	_, err := namedotcom.CreateRecordAPI(context.Background(), client, testDomain, "test", "A", "1.2.3.4")
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
+	}
+}
+
+func TestReadRecordAPI_Success(t *testing.T) {
 	initLimiters(t)
 
 	mux := http.NewServeMux()
@@ -100,26 +114,28 @@ func TestResourceRecordRead_Success(t *testing.T) {
 
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "",
-		"record_type": "",
-		"answer":      "",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordRead(data, client)
+	record, err := namedotcom.ReadRecordAPI(context.Background(), client, testDomain, 42)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertResourceData(t, data, "domain_name", testDomain)
-	assertResourceData(t, data, "host", "www")
-	assertResourceData(t, data, "record_type", "CNAME")
-	assertResourceData(t, data, "answer", "example.com.")
+	if record.Host != "www" || record.Type != "CNAME" || record.Answer != "example.com." {
+		t.Errorf("unexpected record: %+v", record)
+	}
 }
 
-func TestResourceRecordUpdate_Success(t *testing.T) {
+func TestReadRecordAPI_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com/records/42")
+
+	_, err := namedotcom.ReadRecordAPI(context.Background(), client, testDomain, 42)
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
+	}
+}
+
+func TestUpdateRecordAPI_Success(t *testing.T) {
 	initLimiters(t)
 
 	mux := http.NewServeMux()
@@ -130,23 +146,28 @@ func TestResourceRecordUpdate_Success(t *testing.T) {
 
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "5.6.7.8",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordUpdate(data, client)
+	record, err := namedotcom.UpdateRecordAPI(context.Background(), client, 42, testDomain, "test", "A", "5.6.7.8")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertResourceData(t, data, "answer", "5.6.7.8")
+	if record.Answer != "5.6.7.8" {
+		t.Errorf("Answer = %q, want %q", record.Answer, "5.6.7.8")
+	}
 }
 
-func TestResourceRecordDelete_Success(t *testing.T) {
+func TestUpdateRecordAPI_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com/records/42")
+
+	_, err := namedotcom.UpdateRecordAPI(context.Background(), client, 42, testDomain, "test", "A", "1.2.3.4")
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
+	}
+}
+
+func TestDeleteRecordAPI_Success(t *testing.T) {
 	initLimiters(t)
 
 	mux := http.NewServeMux()
@@ -163,64 +184,24 @@ func TestResourceRecordDelete_Success(t *testing.T) {
 
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "1.2.3.4",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordDelete(data, client)
+	err := namedotcom.DeleteRecordAPI(context.Background(), client, testDomain, 42)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	if data.Id() != "" {
-		t.Errorf("ID should be empty after delete, got %q", data.Id())
-	}
 }
 
-func TestResourceRecordCreate_APIError(t *testing.T) {
+func TestDeleteRecordAPI_APIError(t *testing.T) {
 	initLimiters(t)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v4/domains/example.com/records", func(writer http.ResponseWriter, _ *http.Request) {
-		http.Error(writer, `{"message":"internal server error"}`, http.StatusInternalServerError)
-	})
+	client := newErrorMock(t, "/v4/domains/example.com/records/42")
 
-	client := newMockClient(t, mux)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "1.2.3.4",
-	})
-
-	err := namedotcom.ResourceRecordCreate(data, client)
+	err := namedotcom.DeleteRecordAPI(context.Background(), client, testDomain, 42)
 	if err == nil {
 		t.Fatal("expected error from API, got nil")
 	}
 }
 
-func TestResourceRecordCreate_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "1.2.3.4",
-	})
-
-	err := namedotcom.ResourceRecordCreate(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-// DNSSEC CRUD tests.
+// DNSSEC API helper tests.
 
 func testDNSSECResponse() *namecom.DNSSEC {
 	return &namecom.DNSSEC{
@@ -232,11 +213,10 @@ func testDNSSECResponse() *namecom.DNSSEC {
 	}
 }
 
-func TestResourceDNSSECCreate_Success(t *testing.T) {
+func TestCreateDNSSECAPI_Success(t *testing.T) {
 	initLimiters(t)
 
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("/v4/domains/example.com/dnssec", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
@@ -252,36 +232,26 @@ func TestResourceDNSSECCreate_Success(t *testing.T) {
 		}
 	})
 
-	mux.HandleFunc("/v4/domains/example.com/dnssec/AABBCCDD", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-
-		_, writeErr := writer.Write(mustJSON(t, testDNSSECResponse()))
-		if writeErr != nil {
-			t.Errorf("failed to write response: %v", writeErr)
-		}
-	})
-
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     12345,
-		"algorithm":   8,
-		"digest_type": 2,
-		"digest":      "AABBCCDD",
-	})
-
-	err := namedotcom.ResourceDNSSECCreate(data, client)
+	err := namedotcom.CreateDNSSECAPI(context.Background(), client, testDomain, 12345, 8, 2, "AABBCCDD")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
 
-	if data.Id() != testDomain {
-		t.Errorf("ID = %q, want %q", data.Id(), testDomain)
+func TestCreateDNSSECAPI_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com/dnssec")
+
+	err := namedotcom.CreateDNSSECAPI(context.Background(), client, testDomain, 12345, 8, 2, "AABBCCDD")
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
 	}
 }
 
-func TestResourceDNSSECRead_Success(t *testing.T) {
+func TestReadDNSSECAPI_Success(t *testing.T) {
 	initLimiters(t)
 
 	mux := http.NewServeMux()
@@ -296,28 +266,28 @@ func TestResourceDNSSECRead_Success(t *testing.T) {
 
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     0,
-		"algorithm":   0,
-		"digest_type": 0,
-		"digest":      "AABBCCDD",
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDNSSECRead(data, client)
+	dnssec, err := namedotcom.ReadDNSSECAPI(context.Background(), client, testDomain, "AABBCCDD")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertResourceData(t, data, "domain_name", testDomain)
-	assertResourceData(t, data, "digest", "AABBCCDD")
-	assertResourceDataInt(t, data, "key_tag", 12345)
-	assertResourceDataInt(t, data, "algorithm", 8)
-	assertResourceDataInt(t, data, "digest_type", 2)
+	if dnssec.KeyTag != 12345 || dnssec.Algorithm != 8 || dnssec.DigestType != 2 {
+		t.Errorf("unexpected dnssec: %+v", dnssec)
+	}
 }
 
-func TestResourceDNSSECDelete_Success(t *testing.T) {
+func TestReadDNSSECAPI_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com/dnssec/AABBCCDD")
+
+	_, err := namedotcom.ReadDNSSECAPI(context.Background(), client, testDomain, "AABBCCDD")
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
+	}
+}
+
+func TestDeleteDNSSECAPI_Success(t *testing.T) {
 	initLimiters(t)
 
 	mux := http.NewServeMux()
@@ -334,32 +304,34 @@ func TestResourceDNSSECDelete_Success(t *testing.T) {
 
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     12345,
-		"algorithm":   8,
-		"digest_type": 2,
-		"digest":      "AABBCCDD",
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDNSSECDelete(data, client)
+	err := namedotcom.DeleteDNSSECAPI(context.Background(), client, testDomain, "AABBCCDD")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
 
-	if data.Id() != "" {
-		t.Errorf("ID should be empty after delete, got %q", data.Id())
+func TestDeleteDNSSECAPI_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com/dnssec/AABBCCDD")
+
+	err := namedotcom.DeleteDNSSECAPI(context.Background(), client, testDomain, "AABBCCDD")
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
 	}
 }
 
-// Domain Nameservers CRUD tests.
+// Nameservers API helper tests.
 
-func TestResourceDomainNameServersCreate_Success(t *testing.T) {
+func TestSetNameserversAPI_Success(t *testing.T) {
 	initLimiters(t)
+
+	called := false
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
+		called = true
+
 		if request.Method != http.MethodPost {
 			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
 
@@ -370,7 +342,33 @@ func TestResourceDomainNameServersCreate_Success(t *testing.T) {
 		fmt.Fprintf(writer, `{}`)
 	})
 
-	// GET /v4/domains/example.com → Read (called after Create)
+	client := newMockClient(t, mux)
+
+	err := namedotcom.SetNameserversAPI(context.Background(), client, testDomain, []string{"ns1.example.com", "ns2.example.com"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !called {
+		t.Fatal("SetNameservers API was not called")
+	}
+}
+
+func TestSetNameserversAPI_APIError(t *testing.T) {
+	initLimiters(t)
+
+	client := newErrorMock(t, "/v4/domains/example.com:setNameservers")
+
+	err := namedotcom.SetNameserversAPI(context.Background(), client, testDomain, []string{"ns1.example.com"})
+	if err == nil {
+		t.Fatal("expected error from API, got nil")
+	}
+}
+
+func TestReadNameserversAPI_Success(t *testing.T) {
+	initLimiters(t)
+
+	mux := http.NewServeMux()
 	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns1.example.com","ns2.example.com"]}`)
@@ -378,485 +376,102 @@ func TestResourceDomainNameServersCreate_Success(t *testing.T) {
 
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{"ns1.example.com", "ns2.example.com"},
-	})
-
-	err := namedotcom.ResourceDomainNameServersCreate(data, client)
+	domain, found, err := namedotcom.ReadNameserversAPI(context.Background(), client, testDomain)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if data.Id() != testDomain {
-		t.Errorf("ID = %q, want %q", data.Id(), testDomain)
+	if !found {
+		t.Fatal("expected found=true")
 	}
 
-	// Verify Read was called after Create and populated nameservers from API
-	nameservers, ok := data.Get("nameservers").(*schema.Set)
-	if !ok {
-		t.Fatal("nameservers is not *schema.Set")
-	}
-
-	if nameservers.Len() != 2 {
-		t.Fatalf("expected 2 nameservers after Create+Read, got %d", nameservers.Len())
+	if len(domain.Nameservers) != 2 {
+		t.Fatalf("expected 2 nameservers, got %d", len(domain.Nameservers))
 	}
 }
 
-func TestResourceDomainNameServersDelete_Success(t *testing.T) {
+func TestReadNameserversAPI_DomainNotFound(t *testing.T) {
 	initLimiters(t)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodPost {
-			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
-
-			return
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{}`)
-	})
-
-	client := newMockClient(t, mux)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersDelete(data, client)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if data.Id() != "" {
-		t.Errorf("ID should be empty after delete, got %q", data.Id())
-	}
-}
-
-func TestResourceDomainNameServersCreate_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{"ns1.example.com"},
-	})
-
-	err := namedotcom.ResourceDomainNameServersCreate(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-// API error tests for Read, Update, Delete operations.
-
-func newErrorMock(t *testing.T, pattern string) *namecom.NameCom {
-	t.Helper()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc(pattern, func(writer http.ResponseWriter, _ *http.Request) {
-		http.Error(writer, `{"message":"server error"}`, http.StatusInternalServerError)
-	})
-
-	return newMockClient(t, mux)
-}
-
-func TestResourceRecordRead_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com/records/42")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "",
-		"record_type": "",
-		"answer":      "",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordRead(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceRecordRead_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "",
-		"record_type": "",
-		"answer":      "",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordRead(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-func TestResourceRecordUpdate_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com/records/42")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "1.2.3.4",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordUpdate(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceRecordUpdate_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "1.2.3.4",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordUpdate(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-func TestResourceRecordDelete_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com/records/42")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "1.2.3.4",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordDelete(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceRecordDelete_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceRecord().Schema, map[string]any{
-		"domain_name": testDomain,
-		"host":        "test",
-		"record_type": "A",
-		"answer":      "1.2.3.4",
-	})
-	data.SetId("42")
-
-	err := namedotcom.ResourceRecordDelete(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-// DNSSEC API error tests.
-
-func TestResourceDNSSECCreate_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com/dnssec")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     12345,
-		"algorithm":   8,
-		"digest_type": 2,
-		"digest":      "AABBCCDD",
-	})
-
-	err := namedotcom.ResourceDNSSECCreate(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceDNSSECCreate_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     12345,
-		"algorithm":   8,
-		"digest_type": 2,
-		"digest":      "AABBCCDD",
-	})
-
-	err := namedotcom.ResourceDNSSECCreate(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-func TestResourceDNSSECRead_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com/dnssec/AABBCCDD")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     0,
-		"algorithm":   0,
-		"digest_type": 0,
-		"digest":      "AABBCCDD",
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDNSSECRead(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceDNSSECRead_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     0,
-		"algorithm":   0,
-		"digest_type": 0,
-		"digest":      "AABBCCDD",
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDNSSECRead(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-func TestResourceDNSSECDelete_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com/dnssec/AABBCCDD")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     12345,
-		"algorithm":   8,
-		"digest_type": 2,
-		"digest":      "AABBCCDD",
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDNSSECDelete(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceDNSSECDelete_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     12345,
-		"algorithm":   8,
-		"digest_type": 2,
-		"digest":      "AABBCCDD",
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDNSSECDelete(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-// Nameservers API error tests.
-
-func TestResourceDomainNameServersCreate_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com:setNameservers")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{"ns1.example.com"},
-	})
-
-	err := namedotcom.ResourceDomainNameServersCreate(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceDomainNameServersDelete_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com:setNameservers")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersDelete(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceDomainNameServersDelete_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersDelete(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-func assertDomainNotFoundClearsState(
-	t *testing.T,
-	pattern string,
-	operation func(*schema.ResourceData, any) error,
-) {
-	t.Helper()
-	initLimiters(t)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc(pattern, func(writer http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
 		http.Error(writer, `{"message":"Domain not found"}`, http.StatusNotFound)
 	})
 
 	client := newMockClient(t, mux)
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{},
-	})
-	data.SetId(testDomain)
-
-	err := operation(data, client)
+	domain, found, err := namedotcom.ReadNameserversAPI(context.Background(), client, testDomain)
 	if err != nil {
 		t.Fatalf("expected nil error for not-found domain, got: %v", err)
 	}
 
-	if data.Id() != "" {
-		t.Errorf("ID should be empty after domain not found, got %q", data.Id())
+	if found {
+		t.Fatal("expected found=false for a missing domain")
+	}
+
+	if domain != nil {
+		t.Errorf("expected nil domain, got %+v", domain)
 	}
 }
 
-func TestResourceDomainNameServersDelete_DomainNotFound(t *testing.T) {
-	assertDomainNotFoundClearsState(
-		t,
-		"/v4/domains/example.com:setNameservers",
-		namedotcom.ResourceDomainNameServersDelete,
-	)
-}
-
-// Nameservers Read and Update tests.
-
-func TestResourceDomainNameServersRead_Success(t *testing.T) {
-	initLimiters(t)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns1.example.com","ns2.example.com"]}`)
-	})
-
-	client := newMockClient(t, mux)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersRead(data, client)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	nameservers, ok := data.Get("nameservers").(*schema.Set)
-	if !ok {
-		t.Fatal("nameservers is not *schema.Set")
-	}
-
-	if nameservers.Len() != 2 {
-		t.Fatalf("expected 2 nameservers, got %d", nameservers.Len())
-	}
-
-	if !nameservers.Contains("ns1.example.com") {
-		t.Errorf("nameservers does not contain %q", "ns1.example.com")
-	}
-
-	if !nameservers.Contains("ns2.example.com") {
-		t.Errorf("nameservers does not contain %q", "ns2.example.com")
-	}
-}
-
-func TestResourceDomainNameServersRead_APIError(t *testing.T) {
+func TestReadNameserversAPI_APIError(t *testing.T) {
 	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com")
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersRead(data, client)
+	_, _, err := namedotcom.ReadNameserversAPI(context.Background(), client, testDomain)
 	if err == nil {
 		t.Fatal("expected error from API, got nil")
 	}
 }
 
-func TestResourceDomainNameServersRead_InvalidMeta(t *testing.T) {
+// extractNameservers tests.
+
+func TestExtractNameservers_Set(t *testing.T) {
 	t.Parallel()
 
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{},
-	})
-	data.SetId(testDomain)
+	set, diags := types.SetValueFrom(context.Background(), types.StringType, []string{"ns1.example.com", "ns2.example.com"})
+	if diags.HasError() {
+		t.Fatalf("unexpected diags building set: %v", diags)
+	}
 
-	err := namedotcom.ResourceDomainNameServersRead(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
+	got, extractDiags := namedotcom.ExtractNameservers(context.Background(), set)
+	if extractDiags.HasError() {
+		t.Fatalf("unexpected diags: %v", extractDiags)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 nameservers, got %d", len(got))
 	}
 }
 
-func TestResourceDomainNameServersRead_DomainNotFound(t *testing.T) {
-	assertDomainNotFoundClearsState(
-		t,
-		"/v4/domains/example.com",
-		namedotcom.ResourceDomainNameServersRead,
-	)
+func TestExtractNameservers_Null(t *testing.T) {
+	t.Parallel()
+
+	got, diags := namedotcom.ExtractNameservers(context.Background(), types.SetNull(types.StringType))
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+
+	if got != nil {
+		t.Errorf("expected nil for null set, got %v", got)
+	}
 }
 
-func TestIsDomainNotFound(t *testing.T) {
+func TestExtractNameservers_Unknown(t *testing.T) {
+	t.Parallel()
+
+	got, diags := namedotcom.ExtractNameservers(context.Background(), types.SetUnknown(types.StringType))
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+
+	if got != nil {
+		t.Errorf("expected nil for unknown set, got %v", got)
+	}
+}
+
+func TestIsNotFoundError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -865,8 +480,10 @@ func TestIsDomainNotFound(t *testing.T) {
 		expected bool
 	}{
 		{name: "nil error", err: nil, expected: false},
-		{name: "404 in message", err: errors.New("404 not found"), expected: true},
+		{name: "404 not found message", err: errors.New("404 not found"), expected: true},
 		{name: "Not Found text", err: errors.New("Not Found"), expected: true},
+		{name: "got error wrapping API message", err: errors.New("got error: Domain not found: "), expected: true},
+		{name: "message without a not-found substring", err: errors.New("server returned 404 bytes"), expected: false},
 		{name: "other error", err: errors.New("connection refused"), expected: false},
 	}
 
@@ -874,408 +491,10 @@ func TestIsDomainNotFound(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := namedotcom.IsDomainNotFound(testCase.err)
+			got := namedotcom.IsNotFoundError(testCase.err)
 			if got != testCase.expected {
-				t.Errorf("isDomainNotFound(%v) = %v, want %v", testCase.err, got, testCase.expected)
+				t.Errorf("IsNotFoundError(%v) = %v, want %v", testCase.err, got, testCase.expected)
 			}
 		})
-	}
-}
-
-func TestResourceDomainNameServersCreate_VerifiesAPICall(t *testing.T) {
-	initLimiters(t)
-
-	setCalled := false
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
-		setCalled = true
-
-		if request.Method != http.MethodPost {
-			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
-
-			return
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{}`)
-	})
-
-	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns1.example.com"]}`)
-	})
-
-	client := newMockClient(t, mux)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{"ns1.example.com"},
-	})
-
-	err := namedotcom.ResourceDomainNameServersCreate(data, client)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if !setCalled {
-		t.Fatal("SetNameservers API was not called during Create")
-	}
-}
-
-func TestResourceDomainNameServersUpdate_VerifiesAPICall(t *testing.T) {
-	initLimiters(t)
-
-	setCalled := false
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
-		setCalled = true
-
-		if request.Method != http.MethodPost {
-			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
-
-			return
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{}`)
-	})
-
-	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns3.example.com"]}`)
-	})
-
-	client := newMockClient(t, mux)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{"ns3.example.com"},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersUpdate(data, client)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if !setCalled {
-		t.Fatal("SetNameservers API was not called during Update")
-	}
-}
-
-func TestResourceDomainNameServersUpdate_Success(t *testing.T) {
-	initLimiters(t)
-
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodPost {
-			http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
-
-			return
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{}`)
-	})
-
-	mux.HandleFunc("/v4/domains/example.com", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(writer, `{"domainName":"example.com","nameservers":["ns3.example.com","ns4.example.com"]}`)
-	})
-
-	client := newMockClient(t, mux)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{"ns3.example.com", "ns4.example.com"},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersUpdate(data, client)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	nameservers, ok := data.Get("nameservers").(*schema.Set)
-	if !ok {
-		t.Fatal("nameservers is not *schema.Set")
-	}
-
-	if nameservers.Len() != 2 {
-		t.Fatalf("expected 2 nameservers, got %d", nameservers.Len())
-	}
-
-	if !nameservers.Contains("ns3.example.com") {
-		t.Errorf("nameservers does not contain %q", "ns3.example.com")
-	}
-
-	if !nameservers.Contains("ns4.example.com") {
-		t.Errorf("nameservers does not contain %q", "ns4.example.com")
-	}
-}
-
-func TestResourceDomainNameServersUpdate_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com:setNameservers")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{"ns1.example.com"},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersUpdate(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-func TestResourceDomainNameServersUpdate_DomainNotFound(t *testing.T) {
-	assertDomainNotFoundClearsState(
-		t,
-		"/v4/domains/example.com:setNameservers",
-		namedotcom.ResourceDomainNameServersUpdate,
-	)
-}
-
-func TestResourceDomainNameServersUpdate_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDomainNameServers().Schema, map[string]any{
-		"domain_name": testDomain,
-		"nameservers": []any{"ns1.example.com"},
-	})
-	data.SetId(testDomain)
-
-	err := namedotcom.ResourceDomainNameServersUpdate(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-// Record Importer tests.
-
-func TestResourceRecordImporter_Success(t *testing.T) {
-	t.Parallel()
-
-	res := namedotcom.ResourceRecord()
-	data := schema.TestResourceDataRaw(t, res.Schema, map[string]any{
-		"domain_name": "",
-		"host":        "",
-		"record_type": "",
-		"answer":      "",
-	})
-	data.SetId("example.com:42")
-
-	results, err := namedotcom.ResourceRecordImporter(data, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-
-	assertResourceData(t, results[0], "domain_name", testDomain)
-
-	if results[0].Id() != "42" {
-		t.Errorf("ID = %q, want %q", results[0].Id(), "42")
-	}
-}
-
-func TestResourceRecordImporter_InvalidFormat(t *testing.T) {
-	t.Parallel()
-
-	res := namedotcom.ResourceRecord()
-	data := schema.TestResourceDataRaw(t, res.Schema, map[string]any{
-		"domain_name": "",
-		"host":        "",
-		"record_type": "",
-		"answer":      "",
-	})
-	data.SetId("invalid-no-colon")
-
-	_, err := namedotcom.ResourceRecordImporter(data, nil)
-	if err == nil {
-		t.Fatal("expected error for invalid import ID, got nil")
-	}
-}
-
-// DNSSEC Importer tests.
-
-func TestResourceDNSSECImporter_Success(t *testing.T) {
-	initLimiters(t)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v4/domains/example.com/dnssec/AABBCCDD", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-
-		_, writeErr := writer.Write(mustJSON(t, testDNSSECResponse()))
-		if writeErr != nil {
-			t.Errorf("failed to write response: %v", writeErr)
-		}
-	})
-
-	client := newMockClient(t, mux)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": "",
-		"key_tag":     0,
-		"algorithm":   0,
-		"digest_type": 0,
-		"digest":      "",
-	})
-	data.SetId("example.com_AABBCCDD")
-
-	results, err := namedotcom.ResourceDNSSECImporter(data, client)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-
-	assertResourceData(t, results[0], "domain_name", testDomain)
-	assertResourceData(t, results[0], "digest", "AABBCCDD")
-	assertResourceDataInt(t, results[0], "key_tag", 12345)
-	assertResourceDataInt(t, results[0], "algorithm", 8)
-	assertResourceDataInt(t, results[0], "digest_type", 2)
-
-	if results[0].Id() != testDomain {
-		t.Errorf("ID = %q, want %q", results[0].Id(), testDomain)
-	}
-}
-
-func TestResourceDNSSECImporter_InvalidFormat(t *testing.T) {
-	initLimiters(t)
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": "",
-		"key_tag":     0,
-		"algorithm":   0,
-		"digest_type": 0,
-		"digest":      "",
-	})
-	data.SetId("invalid-no-underscore")
-
-	client := newMockClient(t, http.NewServeMux())
-
-	_, err := namedotcom.ResourceDNSSECImporter(data, client)
-	if err == nil {
-		t.Fatal("expected error for invalid import ID, got nil")
-	}
-}
-
-func TestResourceDNSSECImporter_InvalidMeta(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": "",
-		"key_tag":     0,
-		"algorithm":   0,
-		"digest_type": 0,
-		"digest":      "",
-	})
-	data.SetId("example.com_AABBCCDD")
-
-	_, err := namedotcom.ResourceDNSSECImporter(data, "not a client")
-	if err == nil {
-		t.Fatal("expected error for invalid meta, got nil")
-	}
-}
-
-func TestResourceDNSSECImporter_APIError(t *testing.T) {
-	initLimiters(t)
-
-	client := newErrorMock(t, "/v4/domains/example.com/dnssec/AABBCCDD")
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": "",
-		"key_tag":     0,
-		"algorithm":   0,
-		"digest_type": 0,
-		"digest":      "",
-	})
-	data.SetId("example.com_AABBCCDD")
-
-	_, err := namedotcom.ResourceDNSSECImporter(data, client)
-	if err == nil {
-		t.Fatal("expected error from API, got nil")
-	}
-}
-
-// getDNSSECFromResourceData tests.
-
-func TestGetDNSSECFromResourceData_Success(t *testing.T) {
-	t.Parallel()
-
-	data := schema.TestResourceDataRaw(t, namedotcom.ResourceDNSSEC().Schema, map[string]any{
-		"domain_name": testDomain,
-		"key_tag":     12345,
-		"algorithm":   8,
-		"digest_type": 2,
-		"digest":      "AABBCCDD",
-	})
-
-	dnssec, err := namedotcom.GetDNSSECFromResourceData(data)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if dnssec.DomainName != testDomain {
-		t.Errorf("DomainName = %q, want %q", dnssec.DomainName, testDomain)
-	}
-
-	if dnssec.KeyTag != 12345 {
-		t.Errorf("KeyTag = %d, want %d", dnssec.KeyTag, 12345)
-	}
-
-	if dnssec.Algorithm != 8 {
-		t.Errorf("Algorithm = %d, want %d", dnssec.Algorithm, 8)
-	}
-
-	if dnssec.DigestType != 2 {
-		t.Errorf("DigestType = %d, want %d", dnssec.DigestType, 2)
-	}
-
-	if dnssec.Digest != "AABBCCDD" {
-		t.Errorf("Digest = %q, want %q", dnssec.Digest, "AABBCCDD")
-	}
-}
-
-// Test helpers.
-
-func assertResourceData(t *testing.T, data *schema.ResourceData, key, expected string) {
-	t.Helper()
-
-	got, ok := data.Get(key).(string)
-	if !ok {
-		t.Errorf("field %q is not a string", key)
-
-		return
-	}
-
-	if got != expected {
-		t.Errorf("field %q = %q, want %q", key, got, expected)
-	}
-}
-
-func assertResourceDataInt(t *testing.T, data *schema.ResourceData, key string, expected int) {
-	t.Helper()
-
-	got, ok := data.Get(key).(int)
-	if !ok {
-		t.Errorf("field %q is not an int", key)
-
-		return
-	}
-
-	if got != expected {
-		t.Errorf("field %q = %d, want %d", key, got, expected)
 	}
 }

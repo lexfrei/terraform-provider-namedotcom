@@ -26,15 +26,15 @@ resource "namedotcom_dnssec" "this" {
 
 ### Required
 
-- `algorithm` (Number) Algorithm is an integer identifying the algorithm used for signing.
-- `digest` (String) Digest is a digest of the DNSKEY RR that is registered with the registry.
-- `digest_type` (Number) DigestType is an integer identifying the algorithm used to create the digest.
-- `domain_name` (String) DomainName is the zone that the DNSSEC belongs to
-- `key_tag` (Number) KeyTag contains the key tag value of the DNSKEY RR that validates this signature.
+- `algorithm` (Number) Algorithm is an integer identifying the algorithm used for signing. Changing this forces a new resource.
+- `digest` (String) Digest is a digest of the DNSKEY RR that is registered with the registry. Changing this forces a new resource.
+- `digest_type` (Number) DigestType is an integer identifying the algorithm used to create the digest. Changing this forces a new resource.
+- `domain_name` (String) DomainName is the zone that the DNSSEC belongs to. Changing this forces a new resource.
+- `key_tag` (Number) KeyTag contains the key tag value of the DNSKEY RR that validates this signature. Changing this forces a new resource.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) Resource identifier, equal to the domain name.
 
 ## Import
 

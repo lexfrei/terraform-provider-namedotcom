@@ -46,11 +46,11 @@ resource "namedotcom_domain_nameservers" "example_com" {
 
 ### Optional
 
-- `nameservers` (List of String) Nameservers is the list of nameservers for this domain. If unspecified it defaults to your account default nameservers.
+- `nameservers` (Set of String) Nameservers is the set of nameservers for this domain. Order is not significant; the registry treats nameservers as a set. If unspecified it defaults to your account default nameservers.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) Resource identifier, equal to the domain name.
 
 ## Import
 
