@@ -5,7 +5,7 @@ go 1.26
 toolchain go1.26.4
 
 require (
-	github.com/cockroachdb/errors v1.13.0
+	github.com/cockroachdb/errors v1.14.0
 	github.com/hashicorp/terraform-plugin-framework v1.19.0
 	github.com/namedotcom/go/v4 v4.0.2
 	golang.org/x/time v0.15.0
