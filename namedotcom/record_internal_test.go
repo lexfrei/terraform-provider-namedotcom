@@ -705,6 +705,117 @@ func TestPriorityToUint32(t *testing.T) {
 	}
 }
 
+// TestRecordUpdate_MXPriorityReset pins the priority 10 -> 0 path. Because the
+// API field is `omitempty`, a zero priority is dropped from the request body;
+// UpdateRecord is a full-replace PUT, so the server resets priority to 0 and
+// state converges. A switch to PATCH semantics would break this and the test.
+func TestRecordUpdate_MXPriorityReset(t *testing.T) {
+	InitRateLimiters(defaultPerSecondLimit, defaultPerHourLimit)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com/records/42", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(writer, `{"id":42,"domainName":"example.com","host":"","type":"MX","answer":"mail.example.com","priority":0}`)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	res := &recordResource{client: namecom.Mock("u", "t", server.URL)}
+
+	model := func(priority types.Int32) recordModel {
+		return recordModel{
+			ID:         types.StringValue("42"),
+			RecordID:   types.Int32Value(42),
+			DomainName: types.StringValue("example.com"),
+			Host:       types.StringValue(""),
+			RecordType: types.StringValue("MX"),
+			Answer:     types.StringValue("mail.example.com"),
+			Priority:   priority,
+		}
+	}
+
+	req := resource.UpdateRequest{
+		Plan:  recordPlan(t, model(types.Int32Value(0))),
+		State: recordState(t, model(types.Int32Value(10))),
+	}
+	resp := resource.UpdateResponse{State: recordState(t, model(types.Int32Value(10)))}
+
+	res.Update(context.Background(), req, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+
+	var got recordModel
+
+	resp.State.Get(context.Background(), &got)
+
+	if got.Priority.ValueInt32() != 0 {
+		t.Errorf("priority = %d, want 0 (reset converges)", got.Priority.ValueInt32())
+	}
+}
+
+// TestPriorityToInt32 covers the API-to-schema conversion directly.
+func TestPriorityToInt32(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		input uint32
+		want  int32
+	}{
+		{0, 0},
+		{10, 10},
+		{65535, 65535},
+	}
+
+	for _, testCase := range cases {
+		if got := priorityToInt32(testCase.input); got != testCase.want {
+			t.Errorf("priorityToInt32(%d) = %d, want %d", testCase.input, got, testCase.want)
+		}
+	}
+}
+
+// TestRecordValidateConfig_DefersOnUnknown confirms the two defer branches: when
+// either record_type or priority is unknown (computed from another resource),
+// validation is postponed rather than erroring.
+func TestRecordValidateConfig_DefersOnUnknown(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		recordType types.String
+		priority   types.Int32
+	}{
+		{"unknown record_type defers", types.StringUnknown(), types.Int32Value(10)},
+		{"unknown priority defers", types.StringValue("A"), types.Int32Unknown()},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			res := &recordResource{}
+			req := resource.ValidateConfigRequest{
+				Config: recordConfig(t, recordModel{
+					DomainName: types.StringValue("example.com"),
+					Host:       types.StringValue(""),
+					RecordType: testCase.recordType,
+					Answer:     types.StringValue("mail.example.com"),
+					Priority:   testCase.priority,
+				}),
+			}
+			resp := &resource.ValidateConfigResponse{}
+
+			res.ValidateConfig(context.Background(), req, resp)
+
+			if resp.Diagnostics.HasError() {
+				t.Errorf("expected validation to defer (no error), got %v", resp.Diagnostics)
+			}
+		})
+	}
+}
+
 // recordConfig builds a tfsdk.Config carrying the record schema and the given
 // model. tfsdk.Config has no Set, so the model is marshalled via State.Set and
 // the resulting Raw value is wrapped in a Config (they share a representation).
