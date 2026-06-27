@@ -78,7 +78,9 @@ func TestCreateRecordAPI_Success(t *testing.T) {
 
 	client := newMockClient(t, mux)
 
-	record, err := namedotcom.CreateRecordAPI(context.Background(), client, testDomain, "test", "A", "1.2.3.4")
+	record, err := namedotcom.CreateRecordAPI(context.Background(), client, &namecom.Record{
+		DomainName: testDomain, Host: "test", Type: "A", Answer: "1.2.3.4",
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -92,12 +94,54 @@ func TestCreateRecordAPI_Success(t *testing.T) {
 	}
 }
 
+// TestCreateRecordAPI_SendsPriority confirms an MX record's priority reaches the
+// API request body and is read back from the response.
+func TestCreateRecordAPI_SendsPriority(t *testing.T) {
+	initLimiters(t)
+
+	var gotPriority uint32
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com/records", func(writer http.ResponseWriter, request *http.Request) {
+		var body namecom.Record
+
+		err := json.NewDecoder(request.Body).Decode(&body)
+		if err != nil {
+			t.Fatalf("decoding request body: %v", err)
+		}
+
+		gotPriority = body.Priority
+
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(writer, `{"id":42,"domainName":"example.com","host":"","type":"MX","answer":"mail.example.com","priority":10}`)
+	})
+
+	client := newMockClient(t, mux)
+
+	record, err := namedotcom.CreateRecordAPI(context.Background(), client, &namecom.Record{
+		DomainName: testDomain, Host: "", Type: "MX", Answer: "mail.example.com", Priority: 10,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotPriority != 10 {
+		t.Errorf("priority sent to API = %d, want 10", gotPriority)
+	}
+
+	if record.Priority != 10 {
+		t.Errorf("record.Priority = %d, want 10", record.Priority)
+	}
+}
+
 func TestCreateRecordAPI_APIError(t *testing.T) {
 	initLimiters(t)
 
 	client := newErrorMock(t, "/v4/domains/example.com/records")
 
-	_, err := namedotcom.CreateRecordAPI(context.Background(), client, testDomain, "test", "A", "1.2.3.4")
+	_, err := namedotcom.CreateRecordAPI(context.Background(), client, &namecom.Record{
+		DomainName: testDomain, Host: "test", Type: "A", Answer: "1.2.3.4",
+	})
 	if err == nil {
 		t.Fatal("expected error from API, got nil")
 	}
@@ -146,7 +190,9 @@ func TestUpdateRecordAPI_Success(t *testing.T) {
 
 	client := newMockClient(t, mux)
 
-	record, err := namedotcom.UpdateRecordAPI(context.Background(), client, 42, testDomain, "test", "A", "5.6.7.8")
+	record, err := namedotcom.UpdateRecordAPI(context.Background(), client, 42, &namecom.Record{
+		DomainName: testDomain, Host: "test", Type: "A", Answer: "5.6.7.8",
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -161,7 +207,9 @@ func TestUpdateRecordAPI_APIError(t *testing.T) {
 
 	client := newErrorMock(t, "/v4/domains/example.com/records/42")
 
-	_, err := namedotcom.UpdateRecordAPI(context.Background(), client, 42, testDomain, "test", "A", "1.2.3.4")
+	_, err := namedotcom.UpdateRecordAPI(context.Background(), client, 42, &namecom.Record{
+		DomainName: testDomain, Host: "test", Type: "A", Answer: "1.2.3.4",
+	})
 	if err == nil {
 		t.Fatal("expected error from API, got nil")
 	}

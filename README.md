@@ -83,134 +83,86 @@ provider "namedotcom" {
 
 ## Usage Examples
 
-### Managing DNS Records
+A realistic configuration that exercises every resource the provider offers. It manages two domains with different strategies: `example.com` is hosted directly on Name.com, while `example.net` is delegated to an external DNS provider and secured with DNSSEC.
 
 ```hcl
-# Create an A record
-resource "namedotcom_record" "website" {
+provider "namedotcom" {
+  # Credentials can also come from the NAMEDOTCOM_USERNAME and
+  # NAMEDOTCOM_TOKEN environment variables.
+  username = var.namedotcom_username
+  token    = var.namedotcom_token
+
+  # Optional: tune the built-in rate limiter (defaults shown).
+  rate_limit_per_second = 20
+  rate_limit_per_hour   = 3000
+}
+
+# --- example.com: DNS hosted on Name.com -------------------------------------
+
+# Apex A record: an empty host targets the bare domain (example.com).
+resource "namedotcom_record" "apex" {
   domain_name = "example.com"
-  host        = "www"
+  host        = ""
   record_type = "A"
   answer      = "192.0.2.1"
 }
 
-# Create a CNAME record
-resource "namedotcom_record" "alias" {
+# IPv6 address for the apex.
+resource "namedotcom_record" "apex_v6" {
   domain_name = "example.com"
-  host        = "blog"
+  host        = ""
+  record_type = "AAAA"
+  answer      = "2001:db8::1"
+}
+
+# www as a CNAME pointing back to the apex.
+resource "namedotcom_record" "www" {
+  domain_name = "example.com"
+  host        = "www"
   record_type = "CNAME"
-  answer      = "www.example.com"
+  answer      = "example.com"
 }
 
-# Create multiple records for the same domain
-resource "namedotcom_record" "multi_records" {
+# Mail exchanger. MX records use priority; a lower value is preferred.
+resource "namedotcom_record" "mail" {
   domain_name = "example.com"
-  record_type = "A"
-  
-  for_each = {
-    ""      = "192.0.2.1"  # Apex domain
-    "www"   = "192.0.2.1"
-    "api"   = "192.0.2.2"
-    "admin" = "192.0.2.3"
-  }
-
-  host   = each.key
-  answer = each.value
-}
-```
-
-### Setting Custom Nameservers
-
-```hcl
-# Use custom nameservers (e.g., with AWS Route 53)
-resource "aws_route53_zone" "example_zone" {
-  name = "example.com"
+  host        = ""
+  record_type = "MX"
+  answer      = "mail.example.com"
+  priority    = 10
 }
 
-resource "namedotcom_domain_nameservers" "example_nameservers" {
+# SPF policy as a TXT record on the apex.
+resource "namedotcom_record" "spf" {
   domain_name = "example.com"
+  host        = ""
+  record_type = "TXT"
+  answer      = "v=spf1 -all"
+}
+
+# --- example.net: delegated to an external DNS provider, secured with DNSSEC -
+
+# Point the domain at the external provider's nameservers.
+resource "namedotcom_domain_nameservers" "example_net" {
+  domain_name = "example.net"
   nameservers = [
-    aws_route53_zone.example_zone.name_servers[0],
-    aws_route53_zone.example_zone.name_servers[1],
-    aws_route53_zone.example_zone.name_servers[2],
-    aws_route53_zone.example_zone.name_servers[3],
+    "ns1.dns.example",
+    "ns2.dns.example",
   ]
 }
-```
 
-### Setting Up DNSSEC
-
-```hcl
-# Configure DNSSEC with AWS Route 53
-resource "aws_route53_zone" "example_zone" {
-  name = "example.com"
-}
-
-resource "aws_route53_key_signing_key" "example_ksk" {
-  name                       = "example-key"
-  hosted_zone_id             = aws_route53_zone.example_zone.id
-  key_management_service_arn = aws_kms_key.example_kms.arn
-}
-
-resource "aws_route53_hosted_zone_dnssec" "example" {
-  hosted_zone_id = aws_route53_zone.example_zone.id
-}
-
-resource "namedotcom_dnssec" "example_dnssec" {
-  domain_name = "example.com"
-  key_tag     = aws_route53_key_signing_key.example_ksk.key_tag
-  algorithm   = aws_route53_key_signing_key.example_ksk.signing_algorithm_type
-  digest_type = aws_route53_key_signing_key.example_ksk.digest_algorithm_type
-  digest      = aws_route53_key_signing_key.example_ksk.digest_value
+# Register the DS record so the delegated zone is validated by the registry.
+# These values come from the external DNS provider's key-signing key.
+resource "namedotcom_dnssec" "example_net" {
+  domain_name = "example.net"
+  key_tag     = 12345
+  algorithm   = 13
+  digest_type = 2
+  digest      = "6B3ED3311DE85004BF6DD325BA82340BC89B40B86D4055780F3BE4390B81B59A"
 }
 ```
 
-### API Rate Limiting
-
-The provider includes built-in rate limiting to prevent hitting Name.com's API limits. The defaults should work for most use cases, but you can adjust them if needed:
-
-```hcl
-provider "namedotcom" {
-  username = var.namedotcom_username
-  token    = var.namedotcom_token
-  
-  # Optional rate limiting configuration
-  rate_limit_per_second = 20   # Default: 20
-  rate_limit_per_hour   = 3000 # Default: 3000
-}
-```
-
-## Resource Importing
-
-### Importing DNS Records
-
-To import existing DNS records into your Terraform state:
-
-```bash
-# Format: terraform import namedotcom_record.[resource_name] [domain_name]:[record_id]
-terraform import namedotcom_record.website example.com:12345
-
-# For records in a for_each block
-terraform import 'namedotcom_record.multi_records["www"]' example.com:12345
-```
-
-To find the record ID, use the Name.com API:
-
-```bash
-curl -u 'username:token' 'https://api.name.com/v4/domains/example.com/records'
-```
-
-### Importing DNSSEC Settings
-
-To import existing DNSSEC settings:
-
-```bash
-# Format: terraform import namedotcom_dnssec.[resource_name] [domain_name]_[digest]
-terraform import namedotcom_dnssec.example_dnssec example.com_6B3ED3311DE85004BF6DD325BA82340BC89B40B86D4055780F3BE4390B81B59A
-
-# For resources in a for_each block
-terraform import 'namedotcom_dnssec.dnssec["example.com"]' example.com_6B3ED3311DE85004BF6DD325BA82340BC89B40B86D4055780F3BE4390B81B59A
-```
+> Hosting a zone's records on Name.com and delegating that same zone elsewhere are mutually exclusive — once a domain is delegated, its records live with the other provider. See the [per-resource docs](#resource-documentation) for the full attribute reference and import syntax.
 
 ## Resource Documentation
 

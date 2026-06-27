@@ -2,25 +2,41 @@ package namedotcom
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/cockroachdb/errors"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/namedotcom/go/v4/namecom"
 )
 
+// priorityMin and priorityMax bound the DNS priority field (a 16-bit value).
+const (
+	priorityMin = 0
+	priorityMax = 65535
+)
+
+// Record types that use the priority field; priority is rejected for all others.
+const (
+	recordTypeMX  = "MX"
+	recordTypeSRV = "SRV"
+)
+
 // Ensure the resource satisfies the required framework interfaces.
 var (
-	_ resource.Resource                = (*recordResource)(nil)
-	_ resource.ResourceWithConfigure   = (*recordResource)(nil)
-	_ resource.ResourceWithImportState = (*recordResource)(nil)
+	_ resource.Resource                   = (*recordResource)(nil)
+	_ resource.ResourceWithConfigure      = (*recordResource)(nil)
+	_ resource.ResourceWithImportState    = (*recordResource)(nil)
+	_ resource.ResourceWithValidateConfig = (*recordResource)(nil)
 )
 
 // recordResource manages a single Name.com DNS record.
@@ -36,6 +52,7 @@ type recordModel struct {
 	Host       types.String `tfsdk:"host"`
 	RecordType types.String `tfsdk:"record_type"`
 	Answer     types.String `tfsdk:"answer"`
+	Priority   types.Int32  `tfsdk:"priority"`
 }
 
 // NewRecordResource is the resource factory registered with the provider.
@@ -81,6 +98,12 @@ func (r *recordResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				//nolint:lll // One sentence covering every supported record type.
 				Description: "Answer is the record value: the IP address for A and AAAA records, the target for ANAME, CNAME, MX, NS, and SRV records, or the text for TXT records.",
 			},
+			keyPriority: schema.Int32Attribute{
+				Optional:   true,
+				Validators: []validator.Int32{int32validator.Between(priorityMin, priorityMax)},
+				//nolint:lll // One sentence describing where priority applies.
+				Description: "Priority is used by MX and SRV records, where a lower value is preferred; it is ignored for all other record types. Valid range is 0-65535.",
+			},
 		},
 	}
 }
@@ -94,6 +117,40 @@ func (r *recordResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.client = client
 }
 
+// ValidateConfig rejects a priority set on a record type that ignores it: only
+// MX and SRV records use priority. Name.com silently drops priority for other
+// types, so without this check such a config would produce a perpetual plan
+// diff (configured value vs the zero the API stores).
+func (r *recordResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config recordModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Nothing to validate when priority is unset, or when the type is not yet
+	// known (computed from another resource): defer to apply-time behaviour.
+	if config.Priority.IsNull() || config.Priority.IsUnknown() {
+		return
+	}
+
+	if config.RecordType.IsNull() || config.RecordType.IsUnknown() {
+		return
+	}
+
+	switch strings.ToUpper(config.RecordType.ValueString()) {
+	case recordTypeMX, recordTypeSRV:
+		return
+	default:
+		resp.Diagnostics.AddAttributeError(
+			path.Root(keyPriority),
+			"Priority not supported for this record type",
+			fmt.Sprintf("priority applies only to MX and SRV records, but record_type is %q.", config.RecordType.ValueString()),
+		)
+	}
+}
+
 func (r *recordResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan recordModel
 
@@ -102,13 +159,7 @@ func (r *recordResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	record, err := createRecordAPI(
-		ctx, r.client,
-		plan.DomainName.ValueString(),
-		plan.Host.ValueString(),
-		plan.RecordType.ValueString(),
-		plan.Answer.ValueString(),
-	)
+	record, err := createRecordAPI(ctx, r.client, apiRecordFromModel(plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating record", err.Error())
 
@@ -177,13 +228,7 @@ func (r *recordResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	record, err := updateRecordAPI(
-		ctx, r.client, recordID,
-		plan.DomainName.ValueString(),
-		plan.Host.ValueString(),
-		plan.RecordType.ValueString(),
-		plan.Answer.ValueString(),
-	)
+	record, err := updateRecordAPI(ctx, r.client, recordID, apiRecordFromModel(plan))
 	if err != nil {
 		// The record was deleted outside Terraform between plan and apply: drop
 		// it from state so the next plan recreates it, matching the Read path.
@@ -294,8 +339,27 @@ func recordReadState(state recordModel, record *namecom.Record) recordModel {
 	state.Host = reconcileHostValue(state.Host, record.Host)
 	state.RecordType = reconcileDNSValue(state.RecordType, record.Type)
 	state.Answer = reconcileDNSValue(state.Answer, record.Answer)
+	state.Priority = reconcilePriority(state.Priority, record.Priority)
 
 	return state
+}
+
+// reconcilePriority keeps an unset priority (null) when the API reports the
+// zero default: record types that do not use priority always report 0, which
+// would otherwise surface as perpetual drift against a config that omits the
+// attribute. A configured value that matches the API is preserved as-is; any
+// genuine difference is adopted from the API, so an MX record's priority is
+// populated on import and real out-of-band changes are still detected.
+func reconcilePriority(prior types.Int32, apiValue uint32) types.Int32 {
+	if prior.IsNull() && apiValue == 0 {
+		return prior
+	}
+
+	if !prior.IsNull() && priorityToUint32(prior) == apiValue {
+		return prior
+	}
+
+	return types.Int32Value(priorityToInt32(apiValue))
 }
 
 // reconcileDNSValue keeps the prior state value when it is semantically equal
@@ -357,23 +421,46 @@ func requiresReplaceOnDNSChange() planmodifier.String {
 	)
 }
 
+// apiRecordFromModel builds the Name.com API record from the user-controlled
+// attributes of the plan. The server-assigned id is set separately by the
+// callers that need it (Update).
+func apiRecordFromModel(model recordModel) *namecom.Record {
+	return &namecom.Record{
+		DomainName: model.DomainName.ValueString(),
+		Host:       model.Host.ValueString(),
+		Type:       model.RecordType.ValueString(),
+		Answer:     model.Answer.ValueString(),
+		Priority:   priorityToUint32(model.Priority),
+	}
+}
+
+// priorityToUint32 converts the optional priority attribute to the uint32 the
+// API expects. An unset or unknown value maps to 0; any concrete value is in
+// the validated 0-65535 range, so the conversion is always in bounds.
+func priorityToUint32(priority types.Int32) uint32 {
+	if priority.IsNull() || priority.IsUnknown() {
+		return 0
+	}
+
+	//nolint:gosec // The schema validator constrains priority to 0-65535.
+	return uint32(priority.ValueInt32())
+}
+
+// priorityToInt32 converts an API priority back to the schema's int32. DNS
+// priority is a 16-bit field, so the value always fits in int32.
+func priorityToInt32(apiValue uint32) int32 {
+	//nolint:gosec // DNS priority is a 16-bit field; it always fits in int32.
+	return int32(apiValue)
+}
+
 // createRecordAPI creates a record via the Name.com API.
-func createRecordAPI(
-	ctx context.Context,
-	client *namecom.NameCom,
-	domainName, host, recordType, answer string,
-) (*namecom.Record, error) {
+func createRecordAPI(ctx context.Context, client *namecom.NameCom, input *namecom.Record) (*namecom.Record, error) {
 	err := RespectRateLimits(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "rate limiting error")
 	}
 
-	record, err := client.CreateRecord(&namecom.Record{
-		DomainName: domainName,
-		Host:       host,
-		Type:       recordType,
-		Answer:     answer,
-	})
+	record, err := client.CreateRecord(input)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error CreateRecord")
 	}
@@ -400,24 +487,15 @@ func readRecordAPI(ctx context.Context, client *namecom.NameCom, domainName stri
 }
 
 // updateRecordAPI updates a record via the Name.com API.
-func updateRecordAPI(
-	ctx context.Context,
-	client *namecom.NameCom,
-	recordID int32,
-	domainName, host, recordType, answer string,
-) (*namecom.Record, error) {
+func updateRecordAPI(ctx context.Context, client *namecom.NameCom, recordID int32, input *namecom.Record) (*namecom.Record, error) {
 	err := RespectRateLimits(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "rate limiting error")
 	}
 
-	record, err := client.UpdateRecord(&namecom.Record{
-		ID:         recordID,
-		DomainName: domainName,
-		Host:       host,
-		Type:       recordType,
-		Answer:     answer,
-	})
+	input.ID = recordID
+
+	record, err := client.UpdateRecord(input)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error UpdateRecord")
 	}

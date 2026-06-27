@@ -69,10 +69,20 @@ func TestRecordResource_Schema(t *testing.T) {
 	res := namedotcom.NewRecordResource()
 	attrs := resourceSchema(t, res).Attributes
 
-	for _, field := range []string{"id", "record_id", "domain_name", "host", "record_type", "answer"} {
+	for _, field := range []string{"id", "record_id", "domain_name", "host", "record_type", "answer", "priority"} {
 		if _, ok := attrs[field]; !ok {
 			t.Errorf("record schema missing attribute %q", field)
 		}
+	}
+
+	// priority is an optional Int32 used by MX/SRV records; it must be settable
+	// and not force replacement (it can be updated in place).
+	if !attrs["priority"].IsOptional() {
+		t.Error("priority should be optional")
+	}
+
+	if _, ok := attrs["priority"].(rschema.Int32Attribute); !ok {
+		t.Errorf("priority should be an Int32 attribute, got %T", attrs["priority"])
 	}
 
 	if !attrs["id"].IsComputed() {

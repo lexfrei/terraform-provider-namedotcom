@@ -28,6 +28,16 @@ resource "namedotcom_record" "foo" {
   record_type = "A"
   answer = "192.0.2.3"
 }
+
+// example.com MX -> mail.example.com (lower priority is preferred)
+
+resource "namedotcom_record" "mail" {
+  domain_name = "example.com"
+  host = ""
+  record_type = "MX"
+  answer = "mail.example.com"
+  priority = 10
+}
 ```
 
 Many records per domain example
@@ -56,6 +66,7 @@ resource "namedotcom_record" "domain-me" {
 - `answer` (String) Answer is the record value: the IP address for A and AAAA records, the target for ANAME, CNAME, MX, NS, and SRV records, or the text for TXT records.
 - `domain_name` (String) DomainName is the zone that the record belongs to. Changing this forces a new resource.
 - `host` (String) Host is the hostname relative to the zone.
+- `priority` (Number) Priority is used by MX and SRV records, where a lower value is preferred; it is ignored for all other record types. Valid range is 0-65535.
 - `record_type` (String) Type is one of the following: A, AAAA, ANAME, CNAME, MX, NS, SRV, or TXT. Changing this forces a new resource.
 
 ### Read-Only
