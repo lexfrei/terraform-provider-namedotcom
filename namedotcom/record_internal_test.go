@@ -788,6 +788,7 @@ func TestRecordValidateConfig_DefersOnUnknown(t *testing.T) {
 		priority   types.Int32
 	}{
 		{"unknown record_type defers", types.StringUnknown(), types.Int32Value(10)},
+		{"null record_type defers", types.StringNull(), types.Int32Value(10)},
 		{"unknown priority defers", types.StringValue("A"), types.Int32Unknown()},
 	}
 
