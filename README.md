@@ -24,15 +24,6 @@ A Terraform provider that allows you to manage your [Name.com](https://name.com)
 >
 > I strongly recommend migrating to [OpenTofu](https://opentofu.org/) — a drop-in replacement for Terraform with a reliable, community-driven registry.
 
-## Upgrading to v4.0.0
-
-v4.0.0 rebuilds the provider on the Terraform Plugin Framework. There are two breaking changes to be aware of:
-
-- **Minimum tooling**: the provider now serves protocol 6 and requires Terraform >= 1.0 or any OpenTofu version.
-- **`record_id` is now read-only**: it was always assigned by Name.com, so it is now a computed attribute. If you set `record_id` explicitly in a `namedotcom_record` block, remove it — `terraform plan` will otherwise reject it as a read-only attribute. The record's identifier is exposed as the computed `id` (and mirrored as the numeric `record_id`).
-
-Existing state migrates automatically — no manual state edits are required and no resources are replaced. `domain_name` and `record_type` force replacement only on a genuine change; a difference that is purely DNS canonicalization (letter case, or a trailing dot on the answer) does not, so records created by older versions are not destroyed and recreated. The first plan after upgrading may show benign in-place updates: the now-computed `record_id` populates from the API, and `record_type`/`answer` normalize to the representation in your configuration. These are cosmetic refreshes, not replacements.
-
 ## Installation
 
 ### Using OpenTofu Registry (Recommended)
@@ -242,7 +233,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [BSD 3-Clause License](LICENSE).
 
 ## References
 
