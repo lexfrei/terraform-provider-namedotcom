@@ -36,6 +36,7 @@ type recordModel struct {
 	Host       types.String `tfsdk:"host"`
 	RecordType types.String `tfsdk:"record_type"`
 	Answer     types.String `tfsdk:"answer"`
+	Priority   types.Int32  `tfsdk:"priority"`
 }
 
 // NewRecordResource is the resource factory registered with the provider.
@@ -81,6 +82,11 @@ func (r *recordResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				//nolint:lll // One sentence covering every supported record type.
 				Description: "Answer is the record value: the IP address for A and AAAA records, the target for ANAME, CNAME, MX, NS, and SRV records, or the text for TXT records.",
 			},
+			keyPriority: schema.Int32Attribute{
+				Optional: true,
+				//nolint:lll // One sentence describing where priority applies.
+				Description: "Priority is used by MX and SRV records, where a lower value is preferred; it is ignored for all other record types. Valid range is 0-65535.",
+			},
 		},
 	}
 }
@@ -102,13 +108,7 @@ func (r *recordResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	record, err := createRecordAPI(
-		ctx, r.client,
-		plan.DomainName.ValueString(),
-		plan.Host.ValueString(),
-		plan.RecordType.ValueString(),
-		plan.Answer.ValueString(),
-	)
+	record, err := createRecordAPI(ctx, r.client, apiRecordFromModel(plan))
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating record", err.Error())
 
@@ -177,13 +177,7 @@ func (r *recordResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	record, err := updateRecordAPI(
-		ctx, r.client, recordID,
-		plan.DomainName.ValueString(),
-		plan.Host.ValueString(),
-		plan.RecordType.ValueString(),
-		plan.Answer.ValueString(),
-	)
+	record, err := updateRecordAPI(ctx, r.client, recordID, apiRecordFromModel(plan))
 	if err != nil {
 		// The record was deleted outside Terraform between plan and apply: drop
 		// it from state so the next plan recreates it, matching the Read path.
@@ -294,8 +288,27 @@ func recordReadState(state recordModel, record *namecom.Record) recordModel {
 	state.Host = reconcileHostValue(state.Host, record.Host)
 	state.RecordType = reconcileDNSValue(state.RecordType, record.Type)
 	state.Answer = reconcileDNSValue(state.Answer, record.Answer)
+	state.Priority = reconcilePriority(state.Priority, record.Priority)
 
 	return state
+}
+
+// reconcilePriority keeps an unset priority (null) when the API reports the
+// zero default: record types that do not use priority always report 0, which
+// would otherwise surface as perpetual drift against a config that omits the
+// attribute. A configured value that matches the API is preserved as-is; any
+// genuine difference is adopted from the API, so an MX record's priority is
+// populated on import and real out-of-band changes are still detected.
+func reconcilePriority(prior types.Int32, apiValue uint32) types.Int32 {
+	if prior.IsNull() && apiValue == 0 {
+		return prior
+	}
+
+	if !prior.IsNull() && priorityToUint32(prior) == apiValue {
+		return prior
+	}
+
+	return types.Int32Value(priorityToInt32(apiValue))
 }
 
 // reconcileDNSValue keeps the prior state value when it is semantically equal
@@ -357,23 +370,46 @@ func requiresReplaceOnDNSChange() planmodifier.String {
 	)
 }
 
+// apiRecordFromModel builds the Name.com API record from the user-controlled
+// attributes of the plan. The server-assigned id is set separately by the
+// callers that need it (Update).
+func apiRecordFromModel(model recordModel) *namecom.Record {
+	return &namecom.Record{
+		DomainName: model.DomainName.ValueString(),
+		Host:       model.Host.ValueString(),
+		Type:       model.RecordType.ValueString(),
+		Answer:     model.Answer.ValueString(),
+		Priority:   priorityToUint32(model.Priority),
+	}
+}
+
+// priorityToUint32 converts the optional priority attribute to the uint32 the
+// API expects. An unset, unknown, or negative value maps to 0, which the API
+// ignores for record types that do not use priority.
+func priorityToUint32(priority types.Int32) uint32 {
+	if priority.IsNull() || priority.IsUnknown() || priority.ValueInt32() < 0 {
+		return 0
+	}
+
+	//nolint:gosec // Guarded above: the value is non-negative, so it fits in uint32.
+	return uint32(priority.ValueInt32())
+}
+
+// priorityToInt32 converts an API priority back to the schema's int32. DNS
+// priority is a 16-bit field, so the value always fits in int32.
+func priorityToInt32(apiValue uint32) int32 {
+	//nolint:gosec // DNS priority is a 16-bit field; it always fits in int32.
+	return int32(apiValue)
+}
+
 // createRecordAPI creates a record via the Name.com API.
-func createRecordAPI(
-	ctx context.Context,
-	client *namecom.NameCom,
-	domainName, host, recordType, answer string,
-) (*namecom.Record, error) {
+func createRecordAPI(ctx context.Context, client *namecom.NameCom, input *namecom.Record) (*namecom.Record, error) {
 	err := RespectRateLimits(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "rate limiting error")
 	}
 
-	record, err := client.CreateRecord(&namecom.Record{
-		DomainName: domainName,
-		Host:       host,
-		Type:       recordType,
-		Answer:     answer,
-	})
+	record, err := client.CreateRecord(input)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error CreateRecord")
 	}
@@ -400,24 +436,15 @@ func readRecordAPI(ctx context.Context, client *namecom.NameCom, domainName stri
 }
 
 // updateRecordAPI updates a record via the Name.com API.
-func updateRecordAPI(
-	ctx context.Context,
-	client *namecom.NameCom,
-	recordID int32,
-	domainName, host, recordType, answer string,
-) (*namecom.Record, error) {
+func updateRecordAPI(ctx context.Context, client *namecom.NameCom, recordID int32, input *namecom.Record) (*namecom.Record, error) {
 	err := RespectRateLimits(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "rate limiting error")
 	}
 
-	record, err := client.UpdateRecord(&namecom.Record{
-		ID:         recordID,
-		DomainName: domainName,
-		Host:       host,
-		Type:       recordType,
-		Answer:     answer,
-	})
+	input.ID = recordID
+
+	record, err := client.UpdateRecord(input)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error UpdateRecord")
 	}

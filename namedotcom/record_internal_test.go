@@ -507,6 +507,83 @@ func TestRequiresReplaceOnDNSChange(t *testing.T) {
 	}
 }
 
+// TestReconcilePriority pins the drift-avoidance rules for the priority
+// attribute: an unset priority must not flap against the API's zero default,
+// a configured value matching the API is preserved, and a genuine difference
+// (including populating an MX record's priority on import) is adopted.
+func TestReconcilePriority(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		prior    types.Int32
+		apiValue uint32
+		want     types.Int32
+	}{
+		{"unset stays null when API reports the zero default", types.Int32Null(), 0, types.Int32Null()},
+		{"configured value matching the API is preserved", types.Int32Value(10), 10, types.Int32Value(10)},
+		{"unset adopts a non-zero API value (MX import)", types.Int32Null(), 10, types.Int32Value(10)},
+		{"a genuine difference is adopted from the API", types.Int32Value(10), 20, types.Int32Value(20)},
+		{"an explicit zero is preserved", types.Int32Value(0), 0, types.Int32Value(0)},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := reconcilePriority(testCase.prior, testCase.apiValue)
+
+			if !got.Equal(testCase.want) {
+				t.Errorf("reconcilePriority(%v, %d) = %v, want %v", testCase.prior, testCase.apiValue, got, testCase.want)
+			}
+		})
+	}
+}
+
+// TestRecordCreate_MXSetsPriority drives Create end to end for an MX record and
+// confirms the configured priority is sent to the API and echoed into state.
+func TestRecordCreate_MXSetsPriority(t *testing.T) {
+	InitRateLimiters(defaultPerSecondLimit, defaultPerHourLimit)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com/records", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(writer, `{"id":42,"domainName":"example.com","host":"","type":"MX","answer":"mail.example.com","priority":10}`)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	res := &recordResource{client: namecom.Mock("u", "t", server.URL)}
+
+	req := resource.CreateRequest{
+		Plan: recordPlan(t, recordModel{
+			ID:         types.StringNull(),
+			RecordID:   types.Int32Null(),
+			DomainName: types.StringValue("example.com"),
+			Host:       types.StringValue(""),
+			RecordType: types.StringValue("MX"),
+			Answer:     types.StringValue("mail.example.com"),
+			Priority:   types.Int32Value(10),
+		}),
+	}
+	resp := resource.CreateResponse{State: recordState(t, recordModel{ID: types.StringNull()})}
+
+	res.Create(context.Background(), req, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+
+	var got recordModel
+
+	resp.State.Get(context.Background(), &got)
+
+	if got.Priority.ValueInt32() != 10 {
+		t.Errorf("priority = %d, want 10", got.Priority.ValueInt32())
+	}
+}
+
 // recordPlan builds a tfsdk.Plan carrying the record schema and the given model.
 func recordPlan(t *testing.T, model recordModel) tfsdk.Plan {
 	t.Helper()

@@ -8,6 +8,7 @@ const (
 	keyHost               = "host"
 	keyRecordType         = "record_type"
 	keyAnswer             = "answer"
+	keyPriority           = "priority"
 	keyRecordID           = "record_id"
 	keyKeyTag             = "key_tag"
 	keyAlgorithm          = "algorithm"
