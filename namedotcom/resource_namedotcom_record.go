@@ -2,25 +2,41 @@ package namedotcom
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/cockroachdb/errors"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/namedotcom/go/v4/namecom"
 )
 
+// priorityMin and priorityMax bound the DNS priority field (a 16-bit value).
+const (
+	priorityMin = 0
+	priorityMax = 65535
+)
+
+// Record types that use the priority field; priority is rejected for all others.
+const (
+	recordTypeMX  = "MX"
+	recordTypeSRV = "SRV"
+)
+
 // Ensure the resource satisfies the required framework interfaces.
 var (
-	_ resource.Resource                = (*recordResource)(nil)
-	_ resource.ResourceWithConfigure   = (*recordResource)(nil)
-	_ resource.ResourceWithImportState = (*recordResource)(nil)
+	_ resource.Resource                   = (*recordResource)(nil)
+	_ resource.ResourceWithConfigure      = (*recordResource)(nil)
+	_ resource.ResourceWithImportState    = (*recordResource)(nil)
+	_ resource.ResourceWithValidateConfig = (*recordResource)(nil)
 )
 
 // recordResource manages a single Name.com DNS record.
@@ -83,7 +99,8 @@ func (r *recordResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description: "Answer is the record value: the IP address for A and AAAA records, the target for ANAME, CNAME, MX, NS, and SRV records, or the text for TXT records.",
 			},
 			keyPriority: schema.Int32Attribute{
-				Optional: true,
+				Optional:   true,
+				Validators: []validator.Int32{int32validator.Between(priorityMin, priorityMax)},
 				//nolint:lll // One sentence describing where priority applies.
 				Description: "Priority is used by MX and SRV records, where a lower value is preferred; it is ignored for all other record types. Valid range is 0-65535.",
 			},
@@ -98,6 +115,40 @@ func (r *recordResource) Configure(_ context.Context, req resource.ConfigureRequ
 	}
 
 	r.client = client
+}
+
+// ValidateConfig rejects a priority set on a record type that ignores it: only
+// MX and SRV records use priority. Name.com silently drops priority for other
+// types, so without this check such a config would produce a perpetual plan
+// diff (configured value vs the zero the API stores).
+func (r *recordResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config recordModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Nothing to validate when priority is unset, or when the type is not yet
+	// known (computed from another resource): defer to apply-time behaviour.
+	if config.Priority.IsNull() || config.Priority.IsUnknown() {
+		return
+	}
+
+	if config.RecordType.IsNull() || config.RecordType.IsUnknown() {
+		return
+	}
+
+	switch strings.ToUpper(config.RecordType.ValueString()) {
+	case recordTypeMX, recordTypeSRV:
+		return
+	default:
+		resp.Diagnostics.AddAttributeError(
+			path.Root(keyPriority),
+			"Priority not supported for this record type",
+			fmt.Sprintf("priority applies only to MX and SRV records, but record_type is %q.", config.RecordType.ValueString()),
+		)
+	}
 }
 
 func (r *recordResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -384,14 +435,14 @@ func apiRecordFromModel(model recordModel) *namecom.Record {
 }
 
 // priorityToUint32 converts the optional priority attribute to the uint32 the
-// API expects. An unset, unknown, or negative value maps to 0, which the API
-// ignores for record types that do not use priority.
+// API expects. An unset or unknown value maps to 0; any concrete value is in
+// the validated 0-65535 range, so the conversion is always in bounds.
 func priorityToUint32(priority types.Int32) uint32 {
-	if priority.IsNull() || priority.IsUnknown() || priority.ValueInt32() < 0 {
+	if priority.IsNull() || priority.IsUnknown() {
 		return 0
 	}
 
-	//nolint:gosec // Guarded above: the value is non-negative, so it fits in uint32.
+	//nolint:gosec // The schema validator constrains priority to 0-65535.
 	return uint32(priority.ValueInt32())
 }
 

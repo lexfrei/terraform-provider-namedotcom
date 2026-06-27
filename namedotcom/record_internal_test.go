@@ -8,8 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/namedotcom/go/v4/namecom"
@@ -582,6 +585,133 @@ func TestRecordCreate_MXSetsPriority(t *testing.T) {
 	if got.Priority.ValueInt32() != 10 {
 		t.Errorf("priority = %d, want 10", got.Priority.ValueInt32())
 	}
+}
+
+// TestRecordValidateConfig_PriorityRecordType pins that priority is accepted
+// only on MX and SRV records and rejected on every other type, so a config that
+// would silently drift (the API drops priority for other types) fails fast.
+func TestRecordValidateConfig_PriorityRecordType(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		recordType string
+		priority   types.Int32
+		wantErr    bool
+	}{
+		{"priority on MX is allowed", "MX", types.Int32Value(10), false},
+		{"priority on SRV is allowed", "SRV", types.Int32Value(10), false},
+		{"priority on lowercase mx is allowed", "mx", types.Int32Value(10), false},
+		{"priority on A is rejected", "A", types.Int32Value(10), true},
+		{"priority on CNAME is rejected", "CNAME", types.Int32Value(10), true},
+		{"no priority on A is allowed", "A", types.Int32Null(), false},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			res := &recordResource{}
+			req := resource.ValidateConfigRequest{
+				Config: recordConfig(t, recordModel{
+					DomainName: types.StringValue("example.com"),
+					Host:       types.StringValue(""),
+					RecordType: types.StringValue(testCase.recordType),
+					Answer:     types.StringValue("mail.example.com"),
+					Priority:   testCase.priority,
+				}),
+			}
+			resp := &resource.ValidateConfigResponse{}
+
+			res.ValidateConfig(context.Background(), req, resp)
+
+			if resp.Diagnostics.HasError() != testCase.wantErr {
+				t.Errorf("ValidateConfig error = %v, want %v (diags: %v)", resp.Diagnostics.HasError(), testCase.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestRecordSchema_PriorityRangeEnforced confirms the documented 0-65535 range
+// is actually enforced by a validator on the attribute, rejecting out-of-range
+// values and accepting the boundaries.
+func TestRecordSchema_PriorityRangeEnforced(t *testing.T) {
+	t.Parallel()
+
+	var schemaResp resource.SchemaResponse
+
+	(&recordResource{}).Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+
+	attr, ok := schemaResp.Schema.Attributes[keyPriority].(schema.Int32Attribute)
+	if !ok {
+		t.Fatalf("priority attribute is %T, want schema.Int32Attribute", schemaResp.Schema.Attributes[keyPriority])
+	}
+
+	if len(attr.Int32Validators()) == 0 {
+		t.Fatal("priority attribute has no validators; the documented 0-65535 range is not enforced")
+	}
+
+	rejected := func(value int32) bool {
+		req := validator.Int32Request{Path: path.Root(keyPriority), ConfigValue: types.Int32Value(value)}
+		resp := &validator.Int32Response{}
+
+		for _, val := range attr.Int32Validators() {
+			val.ValidateInt32(context.Background(), req, resp)
+		}
+
+		return resp.Diagnostics.HasError()
+	}
+
+	cases := []struct {
+		value   int32
+		wantErr bool
+	}{
+		{-1, true},
+		{65536, true},
+		{0, false},
+		{65535, false},
+	}
+
+	for _, testCase := range cases {
+		if got := rejected(testCase.value); got != testCase.wantErr {
+			t.Errorf("priority=%d: validator rejected = %v, want %v", testCase.value, got, testCase.wantErr)
+		}
+	}
+}
+
+// TestPriorityToUint32 covers the unset/unknown branches that map to the API's
+// zero default; concrete values pass through unchanged.
+func TestPriorityToUint32(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input types.Int32
+		want  uint32
+	}{
+		{"null maps to zero", types.Int32Null(), 0},
+		{"unknown maps to zero", types.Int32Unknown(), 0},
+		{"concrete value passes through", types.Int32Value(10), 10},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := priorityToUint32(testCase.input); got != testCase.want {
+				t.Errorf("priorityToUint32(%v) = %d, want %d", testCase.input, got, testCase.want)
+			}
+		})
+	}
+}
+
+// recordConfig builds a tfsdk.Config carrying the record schema and the given
+// model. tfsdk.Config has no Set, so the model is marshalled via State.Set and
+// the resulting Raw value is wrapped in a Config (they share a representation).
+func recordConfig(t *testing.T, model recordModel) tfsdk.Config {
+	t.Helper()
+
+	return tfsdk.Config(recordState(t, model))
 }
 
 // recordPlan builds a tfsdk.Plan carrying the record schema and the given model.
