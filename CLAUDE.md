@@ -12,7 +12,7 @@ This is a Terraform provider for Name.com DNS and domain management. The provide
 - Uses Name.com Go SDK v4 for API interactions
 - Implements built-in rate limiting (20 req/sec, 3000 req/hour)
 - Provider entry point: `main.go` (served via `providerserver.Serve`), implementation in `namedotcom/` package
-- Uses Go 1.26+ with modern language features
+- Uses Go 1.27+ with modern language features
 - Each resource is a struct implementing `resource.Resource`; API translation lives in unit-testable helper functions
 - Uses `diag.Diagnostics` for rich error reporting
 
@@ -213,7 +213,7 @@ The provider uses Terraform Plugin Framework patterns:
 
 ### Go Language Features
 
-Current implementation uses Go 1.26+ features:
+Current implementation uses Go 1.27+ features:
 
 - **Range over integers**: `for range numGoroutines` syntax
 - **Error wrapping**: Using `errors.New()` and proper error chains
@@ -230,7 +230,7 @@ The `.golangci.yaml` configuration follows modern Go practices:
 
 ### Dependencies Management
 
-- **Go modules**: Using `go.mod` with Go 1.26+ requirement
-- **Toolchain specification**: Explicit `toolchain go1.26.3` declaration
+- **Go modules**: Using `go.mod` with Go 1.27+ requirement
+- **Toolchain specification**: Explicit `toolchain go1.27.0` declaration
 - **Version pinning**: Direct and indirect dependencies properly managed
 - **Vulnerability scanning**: Automated dependency security checks
