@@ -415,6 +415,63 @@ func TestRecordDelete_Succeeds(t *testing.T) {
 	res.Delete(context.Background(), req, &resource.DeleteResponse{})
 }
 
+// TestRecordDelete_ToleratesNotFound covers the Delete not-found path: a 404
+// from the API means the record is already gone, so Delete succeeds instead of
+// erroring, matching the Update path and the nameservers resource.
+func TestRecordDelete_ToleratesNotFound(t *testing.T) {
+	InitRateLimiters(defaultPerSecondLimit, defaultPerHourLimit)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com/records/42", func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, `{"message":"Record not found"}`, http.StatusNotFound)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	res := &recordResource{client: namecom.Mock("u", "t", server.URL)}
+
+	req := resource.DeleteRequest{State: recordState(t, recordModel{
+		ID:         types.StringValue("42"),
+		DomainName: types.StringValue("example.com"),
+	})}
+	resp := resource.DeleteResponse{}
+
+	res.Delete(context.Background(), req, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics for a 404 during delete: %v", resp.Diagnostics)
+	}
+}
+
+// TestRecordDelete_ErrorsOnAPIFailure pins the blocking side of the not-found
+// guard: an API error other than 404 must still surface as a diagnostic.
+func TestRecordDelete_ErrorsOnAPIFailure(t *testing.T) {
+	InitRateLimiters(defaultPerSecondLimit, defaultPerHourLimit)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com/records/42", func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, `{"message":"server error"}`, http.StatusInternalServerError)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	res := &recordResource{client: namecom.Mock("u", "t", server.URL)}
+
+	req := resource.DeleteRequest{State: recordState(t, recordModel{
+		ID:         types.StringValue("42"),
+		DomainName: types.StringValue("example.com"),
+	})}
+	resp := resource.DeleteResponse{}
+
+	res.Delete(context.Background(), req, &resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected a diagnostic for a non-404 API error during delete")
+	}
+}
+
 // TestRecordImportState parses "domain:id" and seeds domain_name and id.
 func TestRecordImportState(t *testing.T) {
 	res := &recordResource{}

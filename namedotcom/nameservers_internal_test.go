@@ -330,6 +330,40 @@ func TestDomainNameServersDelete_ResetsNameservers(t *testing.T) {
 	}
 }
 
+// TestDomainNameServersDelete_ErrorsOnAPIFailure pins the blocking side of the
+// not-found guard: an API error other than 404 must still surface as a
+// diagnostic.
+//
+//nolint:paralleltest // exercises the global rate limiter
+func TestDomainNameServersDelete_ErrorsOnAPIFailure(t *testing.T) {
+	InitRateLimiters(defaultPerSecondLimit, defaultPerHourLimit)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com:setNameservers", func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, `{"message":"server error"}`, http.StatusInternalServerError)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	res := &domainNameServersResource{client: namecom.Mock("u", "t", server.URL)}
+
+	nameservers, _ := types.SetValueFrom(context.Background(), types.StringType, []string{"ns1.example.com"})
+
+	req := resource.DeleteRequest{State: nameserversV1State(t, nameserversModel{
+		ID:          types.StringValue("example.com"),
+		DomainName:  types.StringValue("example.com"),
+		Nameservers: nameservers,
+	})}
+	resp := resource.DeleteResponse{}
+
+	res.Delete(context.Background(), req, &resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected a diagnostic for a non-404 API error during delete")
+	}
+}
+
 // nameserversV0State builds a schema-version-0 (list-shaped) prior state.
 func nameserversV0State(t *testing.T, priorSchema rschema.Schema) tfsdk.State {
 	t.Helper()

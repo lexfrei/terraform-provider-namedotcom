@@ -179,8 +179,10 @@ func (r *dnssecResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
+	// A not-found response means the key is already gone (removed outside
+	// Terraform, or the whole domain expired): the desired state is reached.
 	err := deleteDNSSECAPI(ctx, r.client, state.DomainName.ValueString(), state.Digest.ValueString())
-	if err != nil {
+	if err != nil && !isNotFoundError(err) {
 		resp.Diagnostics.AddError("Error deleting DNSSEC", err.Error())
 
 		return
