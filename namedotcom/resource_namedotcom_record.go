@@ -263,8 +263,10 @@ func (r *recordResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
+	// A not-found response means the record is already gone (deleted outside
+	// Terraform, or the whole domain expired): the desired state is reached.
 	err = deleteRecordAPI(ctx, r.client, state.DomainName.ValueString(), recordID)
-	if err != nil {
+	if err != nil && !isNotFoundError(err) {
 		resp.Diagnostics.AddError("Error deleting record", err.Error())
 
 		return

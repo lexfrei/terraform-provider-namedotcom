@@ -72,6 +72,57 @@ func TestDNSSECDelete_Succeeds(t *testing.T) {
 	res.Delete(context.Background(), req, &resource.DeleteResponse{})
 }
 
+// TestDNSSECDelete_ToleratesNotFound covers the Delete not-found path: a 404
+// from the API means the key is already gone, so Delete succeeds instead of
+// erroring, matching the nameservers resource.
+func TestDNSSECDelete_ToleratesNotFound(t *testing.T) {
+	InitRateLimiters(defaultPerSecondLimit, defaultPerHourLimit)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com/dnssec/AABBCCDD", func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, `{"message":"DNSSEC not found"}`, http.StatusNotFound)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	res := &dnssecResource{client: namecom.Mock("u", "t", server.URL)}
+
+	req := resource.DeleteRequest{State: dnssecState(t, fullDNSSECModel())}
+	resp := resource.DeleteResponse{}
+
+	res.Delete(context.Background(), req, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics for a 404 during delete: %v", resp.Diagnostics)
+	}
+}
+
+// TestDNSSECDelete_ErrorsOnAPIFailure pins the blocking side of the not-found
+// guard: an API error other than 404 must still surface as a diagnostic.
+func TestDNSSECDelete_ErrorsOnAPIFailure(t *testing.T) {
+	InitRateLimiters(defaultPerSecondLimit, defaultPerHourLimit)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v4/domains/example.com/dnssec/AABBCCDD", func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, `{"message":"server error"}`, http.StatusInternalServerError)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	res := &dnssecResource{client: namecom.Mock("u", "t", server.URL)}
+
+	req := resource.DeleteRequest{State: dnssecState(t, fullDNSSECModel())}
+	resp := resource.DeleteResponse{}
+
+	res.Delete(context.Background(), req, &resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected a diagnostic for a non-404 API error during delete")
+	}
+}
+
 // TestDNSSECRead_RemovesResourceOnNotFound drives the framework Read method and
 // asserts that a 404 removes the resource from state instead of erroring,
 // matching the behaviour of the record and nameservers resources.
