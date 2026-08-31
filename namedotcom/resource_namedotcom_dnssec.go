@@ -208,12 +208,12 @@ func (r *dnssecResource) ImportState(ctx context.Context, req resource.ImportSta
 // "DomainName_Digest". It splits at the last underscore so that domain names
 // containing underscores are handled correctly.
 func resourceDNSSECImporterParseID(importID string) (domainName, digest string, err error) {
-	idx := strings.LastIndex(importID, "_")
-	if idx <= 0 || idx == len(importID)-1 {
+	domainName, digest, found := strings.CutLast(importID, "_")
+	if !found || domainName == "" || digest == "" {
 		return "", "", errors.New("unexpected format of ID, expected DomainName_Digest")
 	}
 
-	return importID[:idx], importID[idx+1:], nil
+	return domainName, digest, nil
 }
 
 // createDNSSECAPI registers a DNSSEC key via the Name.com API.
