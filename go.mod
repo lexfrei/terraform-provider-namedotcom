@@ -9,7 +9,7 @@ require (
 	github.com/hashicorp/terraform-plugin-framework v1.19.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.19.0
 	github.com/namedotcom/go/v4 v4.0.2
-	golang.org/x/time v0.15.0
+	golang.org/x/time v0.16.0
 )
 
 require (
